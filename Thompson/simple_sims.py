@@ -133,8 +133,8 @@ def plot_results(n_iter = 1000, n_time=1000, n_steps = 20, alg=discounted_thomps
     plt.xlabel('Group size')
     plt.ylabel('Average pay-off')
     plt.title(plot_title)
-    plt.ylim(0.4,0.9)
-    plt.xlim(-1,K+15)
+    plt.ylim(0.5,0.9)
+    plt.xlim(1,K+20)
     plt.legend(loc="right", title="Propensity to share")
     plt.show()
     
@@ -188,11 +188,11 @@ def full_sim_run(n_iter = 1000, n_time=1000, n_steps = 20,algs = [discounted_tho
     
 ##############################################################################
 ##############################################################################
-K = 100
+K = 50
 #print (get_simulation_data(100,3))
 #print (simulations(10,100,3))
 
-full_sim_run(1000,1000,5)
+full_sim_run(100,50,5)
 
 #algs = [discounted_thompson,discounted_thompson_general]
 #print (algs[0].__name__)

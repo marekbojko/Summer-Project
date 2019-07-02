@@ -23,7 +23,7 @@ from arms import *
 # K is number of arms of the multi-armed bandit
 global b, N, payoff, K
 
-K = 100
+K = 50
 
 
 def add_weights_complete_graph(graph, comm_prop = 0.5, const = True):
