@@ -3,7 +3,6 @@
 Network of interactions
 """
 
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import random
@@ -79,7 +78,54 @@ def sharing_cycle(x,y,a):
     G = nx.cycle_graph(N)
     d = dijkstra_path(G, x, y)
     return 1/(1+math.exp(a*d))
+    
+    
+# return the acumulated payoff of all nodes
+def accum_payoff(network) :
+    payoff = np.zeros(len(network))
+    for i in range(len(network)):
+        payoff[i] = np.sum(network.node[i]['rewards'])
+    return payoff
+    
 
+def cooling_schedule(t):
+    return 1/math.log(t)
+    
+    
+def accum_payoff_exp(network,t):
+    payoff = np.zeros(len(network))
+    for i in range(len(network)):
+        payoff[i] = math.exp(np.sum(network.node[i]['rewards'])/cooling_schedule(t))
+    return payoff
+    
+    
+def sigmoid_func(x):
+    try:
+        ans = 1 / (1 + math.exp(-x))
+    except OverflowError:
+        if x<-1000:
+            ans = 0
+        else:
+            ans = 1
+    return ans
+    
+    
+def inverse_sigmoid_func(x):
+    try:
+        ans = math.log(x/(1-x))
+    except ZeroDivisionError:
+        ans = math.inf
+    except ValueError:
+        ans = -math.inf
+    return ans
+    
+
+def sigmoid(d):
+    b=dict()
+    for key,value in d.items():
+        b[key] = sigmoid_func(value)
+    return b
+    
     
 def initialise_network_arms(n_players, arms,alg=discounted_thompson,gamma = 1,comm_init=False,field=[]):
     """
@@ -94,9 +140,54 @@ def initialise_network_arms(n_players, arms,alg=discounted_thompson,gamma = 1,co
     arm_selection(network,arms, alg, gamma, field)
     return network
     
+
+def init_sharing(network,const = True, prop_share = 0, func = None):
+    for i in range(len(network)):
+        neighbors = network.node[i]['neighbors']
+        if const:
+            sharing_vector = [prop_share for i in range(len(network.neighbors(i)))]
+        else:
+            sharing_vector = [sigmoid(func(neighbor[i])) for i in range(len(neighbors))] # TO-DO: UPDATE
+        network.node[i]['propensity to share'] = {neighbors[i]: sharing_vector[i] for i in range(len(sharing_vector))}
+        network.node[i]['share information'] = sigmoid(network.node[i]['propensity to share'])
+
+
+def add_noise_dict(d,mu,sigma):
+    b = dict()
+    for key,value in d.items():
+        if sigma!=0:
+            b[key] = value + np.random.normal(mu,sigma)
+        else:
+            b[key] = value
+    return b
     
+    
+def sim_annealing_cooling(network,t):
+    mean_accum_payoff = np.mean(accum_payoff_exp(network,t))
+    for i in range(len(network)):
+        acc_payoff = exp(np.sum(network.node[i]['rewards'])/cooling_schedule(t))
+        epsilon = mean_accum_payoff/acc_payoff
+        network.node[i]['propensity to share'] = add_noise_dict(network.node[i]['propensity to share'],0,epsilon)
+        network.node[i]['share information'] = sigmoid(network.node[i]['propensity to share'])
+        
+    
+def evolve_sharing(network):
+    mean_accum_payoff = np.mean(accum_payoff(network))
+    for i in range(len(network)):
+        acc_payoff = np.sum(network.node[i]['rewards'])
+        if acc_payoff == 0:
+            if mean_accum_payoff == 0:
+                epsilon = 0
+            else:
+                epsilon = 1
+        else:
+            epsilon = mean_accum_payoff/acc_payoff
+        network.node[i]['propensity to share'] = add_noise_dict(network.node[i]['propensity to share'],0,epsilon)
+        network.node[i]['share information'] = sigmoid(network.node[i]['propensity to share'])
+    
+        
 # initialise payoff and strategy fields
-def init(network) :
+def init(network,K) :
     """adds information to each node
     """
     #global N 
@@ -119,7 +210,6 @@ def init(network) :
                                                         # to share information?
         network.node[i]['information shared with'] = np.empty(0) # with whom of the neighbors was a subset of the information set during
                                                             # the particular iteration?
-
         
     # TO-DO fix later with evolutionary strategies - distribute evenly and randomly among players
     """while cnt < n/2 :
@@ -255,3 +345,211 @@ information_sharing_thompson(net)
 
 print (net.nodes(data=True))
 """
+
+
+class comm_graph(nx.MultiDiGraph):
+    """Some useful methods for multi directed graph"""
+    pos=None
+    _label=None
+    
+    
+    def add_nodes(self,n):
+        self.add_nodes_from([i for i in range(n)])
+    
+    
+    def __str__(self):
+        if self._label:
+            return self._label
+        return nx.MultiDiGraph.__repr__(self)
+    
+    
+    def add_e(self, complete = True, prop_share = 0.5, e = []):
+        if complete:
+            self.add_weighted_edges_from((u,v,0.5) for u in range(len(self)) for v in range(len(self)) if u!=v) 
+        else:
+            self.add_weighted_edges_from(e)
+            
+            
+    def init_info_main(self, n_arms, alg=discounted_thompson, gamma = 1, comm_init=False, field=[]):
+        """
+        Initialises a position of individuals with regards to arms of the MAB
+        """
+        for i in range(len(self)):
+            self.node[i]['alloc_seq'] = np.empty(0) #this will be the array of payoff from the multi-armed bandit
+            self.node[i]['rewards'] = np.empty(0)
+            self.node[i]['S'] = np.zeros(n_arms) # for Thompson algs
+            self.node[i]['F'] = np.zeros(n_arms) # for Thompson algs
+
+    
+    def init_info_further(self,n_arms):
+        init(self,n_arms)
+        
+    
+    def init_sharing_vector(self,const = True, prop_share = 0, func = None):
+        init_sharing(self,const, prop_share, func)
+        
+    
+    def initialise(self,n,n_arms,alg=discounted_thompson, gamma = 1,complete=True,const = True,prop_share = 0, comm_init=False, e = [], func=None, field=[]):
+        self.add_nodes(n)
+        self.add_e(complete,prop_share,e)
+        self.init_info_main(n_arms,alg,gamma,comm_init)
+    
+    
+    def select_arm(self,arms,alg=discounted_thompson,gamma = 1, field=[],first_iter=False):
+        arm_selection(self,arms,alg,gamma, field,first_iter)
+        
+    
+    def share_info(self):
+        """
+        Performs one step of information sharing
+        """
+        for i in range(len(self)):
+            self.node[i]['information shared with'] = np.empty(0)
+        for i in range(len(self)):
+            for j in self.node[i]['neighbors']:
+                rand_n = random.random()
+                if self.edge[i][j][0]['weight'] > rand_n:
+                    self.node[i]['information shared with'] = np.append(self.node[i]['information shared with'],j)
+                    # i shares with j:
+                    s = self.node[i]['alloc_seq'][-1]
+                    if self.node[i]['rewards'][-1]==1:
+                        self.node[j]['S'][s] += 1
+                    else:
+                        self.node[j]['F'][s] += 1
+
+        
+    def evolve_sharing(self):
+        evolve_sharing(self)
+        
+    
+    def sim_annealing(self,t):
+        sim_annealing_cooling(self,t)
+        
+    
+    def update_sharing_weights(self):
+        for i in range(len(self)):
+            for j in self.node[i]['neighbors']:
+                self.edge[i][j][0]['weight'] = self.node[i]['share information'][j]
+    
+    
+    def run_round_sim(self,arms,alg=discounted_thompson,gamma = 1, field=[],first_iter=False):
+        self.share_info()
+        self.evolve_sharing()
+        self.update_sharing_weights()
+        self.select_arm(arms, alg ,gamma, field, first_iter)
+        
+    
+        
+    def levels_layout(self,ranks=None,xpos=None):
+        pos={}
+        refpos=nx.spring_layout(self)
+        if not isinstance(xpos,dict):
+            xpos={i:j for i,j in zip(self.nodes(),xpos ) }
+        maxx,maxy=np.max(refpos.values(),axis=0)
+        for i,d in self.nodes(data=True):
+            if not xpos is None and i in xpos:
+                x=xpos[i]
+            else:
+                x= np.random.random()*maxx
+            if ranks is None:
+                y=d['height']*maxy
+            else:
+                y=ranks[i]
+            pos[i]=x,y
+        self.pos=pos
+
+        
+    def plot(self,newfig=True,hold=False,labels=None,edge_labels=None,nscale=1,minsize=0.001,**kwargs):
+        '''Use matplotlib to plot the self'''
+        
+        if self.pos is None:
+            pos=self.pos=nx.spring_layout(self)
+        else:
+            pos=self.pos
+        if newfig:
+            plt.figure()
+        node_size=np.ones(len(self.node) ) *kwargs.get('node_size',1)
+        node_size[node_size<minsize]=0
+        node_size/=np.max(node_size)/2.
+        node_size[node_size>0]=np.clip(node_size[node_size>0],0.1,None)*nscale
+
+
+        node_size[np.random.random(node_size.shape )<kwargs.get('subsample',0)  ]=0
+        nodidx={n:i for i,n in enumerate(self.nodes()) }
+
+        edge_width=kwargs.get('edge_width',1)
+        if edge_width:
+            sign=kwargs.get('sign',0)
+            if not sign or sign<0:
+                nx.draw_networkx_edges(self,pos=pos,edgelist=[(i,j) for i,j,d in
+                    self.edges(data=True) if d.get('weight',0)<0 and node_size[nodidx[i]]*node_size[nodidx[j]]>0],
+                    edge_color='r',width=edge_width )
+            if not sign or sign>0:
+                nx.draw_networkx_edges(self,pos=pos,edgelist=[(i,j) for i,j,d in
+                    self.edges(data=True) if d.get('weight',0)>=0 and node_size[nodidx[i]]*node_size[nodidx[j]]>0.],
+                    edge_color='b',width=edge_width )
+        nx.draw_networkx_nodes(self,pos=pos ,node_size=node_size*200.,linewidths=0,
+                node_color= 'blue')
+        if labels is None:
+            labels={n:str(n) for n in self.nodes() }
+        elif not isinstance(labels,dict):
+            labels={n:labels[i] for i,n in enumerate(self.nodes()) }
+        nx.draw_networkx_labels(self,pos=pos,labels={n:l for n,l in labels.items() if node_size[nodidx[n]]>0} )
+        if not edge_labels is None:
+            if edge_labels=='weights':
+                #print [self.edge[j][i][0] for i,j,d in
+                    #self.edges(data=True)]
+                edge_labels={(i,j):'{:.2f},{:.2f}'.format(self.edge[i][j][0]['weight'],self.edge[j][i][0]['weight']) for i,j,d in
+                    self.edges(data=True) if # self.edge[i][j][0]['weight']>-self.edge[j][i][0]['weight'] and
+                      node_size[nodidx[i]]*node_size[nodidx[j]]>0}
+            nx.draw_networkx_edge_labels(self,pos=pos,edge_labels= edge_labels )
+        if 'title' in kwargs:
+            plt.title(kwargs['title'])
+        if 'xlabel' in kwargs:
+            plt.xlabel(kwargs['xlabel'])
+        if 'ylabel' in kwargs:
+            plt.ylabel(kwargs['ylabel'])
+        plt.axis('off')
+        if not hold:
+            plt.show()
+            
+            
+    def plot_high_sharing(self,err):
+        elarge = [(u, v) for (u, v, d) in self.edges(data=True) if d['weight'] > 1-err]
+        
+        pos = nx.spring_layout(self)  # positions for all nodes
+        
+        # nodes
+        nx.draw_networkx_nodes(self, pos, node_size=700)
+        
+        # edges
+        nx.draw_networkx_edges(self, pos, edgelist=elarge, width=1)
+        
+        # labels
+        nx.draw_networkx_labels(self, pos, font_size=20, font_family='sans-serif')
+        
+        plt.axis('off')
+        plt.show()
+        
+        
+        
+    def plot_high_low(self,err):
+        elarge = [(u, v) for (u, v, d) in self.edges(data=True) if d['weight'] > 1-err]
+        esmall = [(u, v) for (u, v, d) in self.edges(data=True) if d['weight'] <= err]
+        
+        pos = nx.spring_layout(self)  # positions for all nodes
+        
+        # nodes
+        nx.draw_networkx_nodes(self, pos, node_size=700)
+        
+        # edges
+        nx.draw_networkx_edges(self, pos, edgelist=elarge, width=1)
+        nx.draw_networkx_edges(self, pos, edgelist=esmall, width=1, alpha=0.5, edge_color='b', style='dashed')
+        
+        # labels
+        nx.draw_networkx_labels(self, pos, font_size=20, font_family='sans-serif')
+        
+        plt.axis('off')
+        plt.show()
+        
+        

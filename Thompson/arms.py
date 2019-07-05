@@ -181,6 +181,7 @@ class truncated_gaussian_arms(object):
     def __init__(self,n):
         self.n = n
         self.field = [Gaussian_0_1(random.random()) for i in range(self.n)]
+        self.field_exp = [arm.mu for arm in self.field]
 
         
 #A = truncated_gaussian_arms(10)
@@ -203,4 +204,4 @@ class bernoulli_arms(object):
     def __init__(self,n):
         self.n = n
         self.field = [bernoulli_arm(random.random()) for i in range(self.n)]
-
+        self.field_exp = [arm.expectation for arm in self.field]

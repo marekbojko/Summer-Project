@@ -22,6 +22,7 @@ np.random.seed()
 
 from communication_network import *
 
+
 global b, N, payoff, K
 
 def run_network_game(network):
@@ -72,12 +73,15 @@ def record_data_sharing(network, data_array) :
             
     
 def sim_group_size(network,arms, n_time=1000, alg=discounted_thompson):
+    oracle = np.argmax(np.array(arms.field_exp))
+    oracle_performance = np.zeros(0)
     for i in range(1,n_time):
         information_sharing_thompson(network)
         arm_selection(network,arms, alg)
+        oracle_performance = np.append(oracle_performance,arms.field[oracle].draw_sample())
     data = np.zeros(len(network))
     record_data_sharing(network,data)
-    return np.mean(data)/n_time
+    return np.mean(data)/n_time/np.mean(oracle_performance)
 
 
 def full_sim_group_size(comm_prop, arms, n_time=1000, alg=discounted_thompson, gamma = 1, comm_init=False):
@@ -102,7 +106,7 @@ def get_simulation_data(n_time=1000, n_steps = 10, alg=discounted_thompson, arm_
     if arm_type == "bernoulli":
         arm_field = bernoulli_arms(K)
     elif arm_type == "gaussian":
-        arm_field = truncated_gaussian_arms(K)
+        arm_field = truncated_gaussian_arms(K) 
     for i in range(n_steps+1) :
         #print(str(i/float(n_steps)*100)+'%')
         data[i/float(n_steps)*100] = np.array(full_sim_group_size(i/float(n_steps),arm_field, n_time, alg, comm_init))
@@ -125,7 +129,7 @@ def simulations(n_iter = 1000, n_time=1000, n_steps = 10, alg=discounted_thompso
 def plot_results(n_iter = 1000, n_time=1000, n_steps = 20, alg=discounted_thompson, arm_type="bernoulli", plot_title='',comm_init=False ) :
     global K 
     sim_data = simulations(n_iter, n_time, n_steps, alg, arm_type, comm_init)
-    grp_size = [i for i in range(2,K+1)]
+    grp_size = [i for i in range(2,K+1,5)]
     plt.figure()
     for key,value in sim_data.items():
         #print (key,value)
@@ -192,7 +196,20 @@ K = 50
 #print (get_simulation_data(100,3))
 #print (simulations(10,100,3))
 
-full_sim_run(100,50,5)
+#full_sim_run(100,50,5)
 
 #algs = [discounted_thompson,discounted_thompson_general]
 #print (algs[0].__name__)
+
+#############################################################################
+arms = bernoulli_arms(K)
+G = nx.MultiDiGraph()
+A = comm_graph(G)
+A.initialise(5, arms.n)
+
+print (adjacency_matrix(A))
+
+#print (nx.enumerate_all_cliques(A))
+
+
+#A.init_graph()
