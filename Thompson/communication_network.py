@@ -19,6 +19,7 @@ from mab_algorithms import *
 from arms import *
 
 
+
 # K is number of arms of the multi-armed bandit
 global b, N, payoff, K
 
@@ -70,14 +71,13 @@ def sharing_line(x,y,a):
     return 1/(1+math.exp(a*abs(x-y)))
 
     
-def sharing_cycle(x,y,a):
+def sharing_cycle(x,y,n_agents):
     """
     Computes the propensity to share information between two nodes based on the length of the shortest path on a cycle.
     """
-    global N
-    G = nx.cycle_graph(N)
-    d = dijkstra_path(G, x, y)
-    return 1/(1+math.exp(a*d))
+    G = nx.cycle_graph(n_agents)
+    d = len(nx.shortest_path(G, x, y))
+    return -d/10
     
     
 # return the acumulated payoff of all nodes
@@ -141,16 +141,15 @@ def initialise_network_arms(n_players, arms,alg=discounted_thompson,gamma = 1,co
     return network
     
 
-def init_sharing(network,const = True, prop_share = 0, func = None):
+def init_sharing(network,const = True, prop_share = 0, func = sharing_cycle):
     for i in range(len(network)):
         neighbors = network.node[i]['neighbors']
         if const:
-            sharing_vector = [prop_share for i in range(len(network.neighbors(i)))]
+            sharing_vector = [inverse_sigmoid_func(prop_share) for j in range(len(network.neighbors(i)))]
         else:
-            sharing_vector = [sigmoid(func(neighbor[i])) for i in range(len(neighbors))] # TO-DO: UPDATE
+            sharing_vector = [sharing_cycle(i,j,len(network)) for j in neighbors] # TO-DO: UPDATE
         network.node[i]['propensity to share'] = {neighbors[i]: sharing_vector[i] for i in range(len(sharing_vector))}
         network.node[i]['share information'] = sigmoid(network.node[i]['propensity to share'])
-
 
 def add_noise_dict(d,mu,sigma):
     b = dict()
@@ -273,8 +272,8 @@ def arm_selection(network,arms,alg=discounted_thompson,gamma = 1, field=[],first
             alloc_seq,reward_seq,S,F = alg(arms,gamma,alpha_0,beta_0,K, T, S,F, first_iter)
             network.node[i]['alloc_seq'] = np.append(network.node[i]['alloc_seq'],alloc_seq)
             network.node[i]['rewards'] = np.append(network.node[i]['rewards'],reward_seq)
-            network.node[i]['S'] = network.node[i]['S'] + S
-            network.node[i]['F'] = network.node[i]['F'] + F
+            network.node[i]['S'] = S
+            network.node[i]['F'] = F
     else:
         print ('ERROR, a mistake in this function')
         
@@ -363,9 +362,9 @@ class comm_graph(nx.MultiDiGraph):
         return nx.MultiDiGraph.__repr__(self)
     
     
-    def add_e(self, complete = True, prop_share = 0.5, e = []):
+    def add_e(self, complete = True, prop_share = 0, e = []):
         if complete:
-            self.add_weighted_edges_from((u,v,0.5) for u in range(len(self)) for v in range(len(self)) if u!=v) 
+            self.add_weighted_edges_from((u,v,prop_share) for u in range(len(self)) for v in range(len(self)) if u!=v) 
         else:
             self.add_weighted_edges_from(e)
             
@@ -385,7 +384,7 @@ class comm_graph(nx.MultiDiGraph):
         init(self,n_arms)
         
     
-    def init_sharing_vector(self,const = True, prop_share = 0, func = None):
+    def init_sharing_vector(self,const = True, prop_share = 0, func = sharing_cycle):
         init_sharing(self,const, prop_share, func)
         
     
@@ -407,7 +406,9 @@ class comm_graph(nx.MultiDiGraph):
             self.node[i]['information shared with'] = np.empty(0)
         for i in range(len(self)):
             for j in self.node[i]['neighbors']:
+                #print (i,j)
                 rand_n = random.random()
+                #print (self.edge[i][j][0]['weight'])
                 if self.edge[i][j][0]['weight'] > rand_n:
                     self.node[i]['information shared with'] = np.append(self.node[i]['information shared with'],j)
                     # i shares with j:
@@ -428,6 +429,7 @@ class comm_graph(nx.MultiDiGraph):
     
     def update_sharing_weights(self):
         for i in range(len(self)):
+            #print (self.nodes(data=True))
             for j in self.node[i]['neighbors']:
                 self.edge[i][j][0]['weight'] = self.node[i]['share information'][j]
     

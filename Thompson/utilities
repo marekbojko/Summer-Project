@@ -1,0 +1,31 @@
+##################################################
+# Some useful functions
+##################################################
+
+
+
+def find_min_diff(arr, n): 
+    """
+    Returns minimum difference between any pair of elements in an array
+    
+    arr - numpy array
+    n - number of elements in the array used in the process
+    """
+    
+    # Sort array in non-decreasing order 
+    arr = sorted(arr) 
+  
+    # Initialize difference as infinite 
+    diff = 10**20
+  
+    # Find the min diff by comparing adjacent 
+    # pairs in sorted array 
+    for i in range(n-1): 
+        if abs(arr[i+1] - arr[i]) < diff: 
+            diff = abs(arr[i+1] - arr[i]) 
+  
+    # Return min diff 
+    return diff
+    
+    
+    

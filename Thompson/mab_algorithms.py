@@ -27,7 +27,7 @@ import scipy.fftpack
 from IPython import display
 
 #sns.set_style('darkgrid')
-np.random.seed()
+np.random.seed(None)
 #
 
 from arms import *
