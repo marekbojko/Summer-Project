@@ -16,10 +16,12 @@ import copy
 import matplotlib.animation as animation
 from collections import Counter
 
+
 from mab_algorithms import *
 from arms import *
 from PD import *
 from evolutionary_algs import *
+from graph_measures import *
 
 np.random.seed(None)
 
@@ -744,7 +746,15 @@ class NOC(nx.DiGraph):
                 coop_ratio = self.node[n]['Player'].history.histories[i].cooperations/len(self.node[n]['Player'].history.histories[i])
                 all_coop_ratios = np.append(all_coop_ratios,coop_ratio)
                 self.add_weighted_edges_from[(n,i,coop_ratio)]
-        return all_coop_ratios
+        return all_coop_ratios, all_payoffs
+    
+    def plot_coop_payoff(self):
+        coop_ratios, payoffs = self.get_coop_data()
+        plt.scatter(payoffs,coop_ratios)
+        plt.xlabel('Accumulated payoff')
+        plt.ylabel('Cooperation ratio')
+        plt.ylim(-0.05,1.05)
+        
                 
     def get_game_data(self):
         """get all game histories over one generation"""
@@ -770,6 +780,14 @@ class NOC(nx.DiGraph):
                 distribution += self.node[n]['Player'].history.histories[j].state_distribution
         return distribution
     
+    def barplot_hist_distribution(self):
+        height = [value for key,value in self.hist_distribution().items()]
+        bars = [key for key,value in self.hist_distribution().items()]
+        y_pos = np.arrange(len(bars))
+        plt.bar(y_pos,height)
+        plt.xsticks(y_pos,bar)
+        plt.show()
+    
     def get_dist_3_players(self):
         """Get the state distribution of the player with the highest,lowest and median payoffs"""
         all_payoffs = np.array([self.node[n]['accumulated payoff'] for n in range(len(self))])
@@ -777,6 +795,47 @@ class NOC(nx.DiGraph):
         highest_payoff_dist = self.node[numpy.argmax(all_payoffs)]['Player'].history.distribution
         return lowest_payoff_dist, highest_payoff_dist
     
+    def compute_spatial_clustering(self):
+        """Perform structured Ward hierarchical agglomerative clustering at the end of a generation"""
+        clustering = AgglomerativeClustering(n_clusters=None, affinity=toroidal_distance, distance_threshold=0.05).fit(self.get_locations_all)
+        return clustering
+    
+    def compute_coop_graph_k_clique_communities(self):
+        communities = detect_k_communities(self,0.9,3)
+        return communities
+    
+    def create_graph_distances(self):
+        """Creates a simple weighted graph where the weight is the distance between a pair of points"""
+        G = nx.complete_graph(len(self))
+        G.add_weighted_edges_from((u,v,toroidal_distance(self.node[u]['Player'].loc,self.node[v]['Player'].loc)) for u,v in graph.edges())
+        return G
+    
+    def communities_distance_louvain(self):
+        G = self.create_graph_distances()
+        communities_dict = community.best_partition(G)
+        return communities_dict.values()
+    
+    def analyse_communities(self, spatial=False):
+        if spatial:
+            communities = self.communities_distance_louvain()
+        else:
+            communities = self.compute_coop_graph_k_clique_communities()
+        mean_accum_payoff = 0
+        for i in range(len(self)):
+            mean_accum_payoff += self.node[i]['accumulated payoff']/len(self)
+        mean_community_payoff = np.empty(0)
+        for c in communities:
+            mean_payoff = np.mean(np.array([self.node[n]['accumulated payoff'] for n in c]))
+            mean_community_payoff = np.append(mean_community_payoff,mean_payoff/mean_accum_payoff)
+        pyplot.boxplot(mean_community_payoff)
+        pyplot.show()
+        return mean_community_payoff,len(communities)
+    
+    
+        
+        
+        
+        
     
         
         

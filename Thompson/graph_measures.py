@@ -152,13 +152,8 @@ def k_clique_communities(G, k, cliques=None):
     # Connected components of clique graph with perc edges
     # are the percolated cliques
     for component in nx.connected_components(perc_graph):
-        yield(frozenset.union(*component))
+        yield(frozenset.union(*component))    
 
-        
-def detect_k_communities(network,treshold,k,cliques=None):
-    G = transform_di_weight_simple(network,treshold)
-    return [list(x) for x in k_clique_communities(G, k, cliques=None)]
-    
 
 def _get_adjacent_cliques(clique, membership_dict):
     adjacent_cliques = set()
@@ -168,7 +163,11 @@ def _get_adjacent_cliques(clique, membership_dict):
                 adjacent_cliques.add(adj_clique)
     return adjacent_cliques
 
-    
+
+def detect_k_communities(network,treshold,k,cliques=None):
+    G = transform_di_weight_simple(network,treshold)
+    return [list(x) for x in k_clique_communities(G, k, cliques)]
+
     
 def draw_circle_around_clique(clique,coords):
     dist=0

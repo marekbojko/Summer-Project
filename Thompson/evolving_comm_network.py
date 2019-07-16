@@ -710,7 +710,7 @@ class Simulation_PD:
 
 
 def main():
-    PD = Simulation_PD(20, 60, bernoulli_arms, discounted_thompson, 20)
+    PD = Simulation_PD(25, 80, bernoulli_arms, discounted_thompson, 10)
     PD.mult_generations()
 
 

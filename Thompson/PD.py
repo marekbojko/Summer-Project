@@ -196,7 +196,7 @@ class history_all(object):
     def __init__(self,coplayers: list=[]):
         self.histories = self.initialise_dict(coplayers)
         self.coplayers = coplayers
-        self.distribution = distribution
+        self.distribution = self.get_dist_all_interactions()
         
     def initialise_dict(self,coplayers: list=[]):
         histories = dict()
