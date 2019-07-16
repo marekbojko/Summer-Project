@@ -9,4 +9,5 @@ To see an animation with a low number of iterations, run:
 from evolving_comm_network import *
 
 PD = Simulation_PD(25, 80, bernoulli_arms, discounted_thompson, 10)
+
 PD.mult_generations()
