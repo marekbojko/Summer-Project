@@ -9,13 +9,13 @@ import random
 import networkx as nx
 import math
 from scipy import stats
-from bitarray import bitarray
 import pickle
 import community
-from bitarray import bitarray
 import time
 import copy
 import datetime
+
+import matplotlib.animation as animation
 
 plt.style.use('seaborn-white')
 np.random.seed(None)
@@ -226,10 +226,11 @@ Create time series with a fixed group size
 ##############################################################################
 
 class Simulation:
+    """ Simulation class for randomly evolving information sharing"""
     
     #### initialise
     
-    def __init__(self, n_agents, n_bandits, type_bandits, type_alg, const=True, prop_share = 0):
+    def __init__(self, n_agents, n_bandits, type_bandits, type_alg, t_change_strategy = 1, const=True, prop_share = 0):
         """
         Bandits have several options, give one of those options as type_bandits:
             1. bernoulli_arms
@@ -246,10 +247,13 @@ class Simulation:
         self.agents = self.__generate_agents(const,prop_share)
         self.bandits = self.__generate_bandits()
         self.oracle = self.__find_oracle()
+        self.t_max = 500
+        self.prop_share = prop_share
+        self.t_change_strategy = t_change_strategy
 
         
     def __generate_agents(self,const=True,prop_share=0):
-        G = nx.MultiDiGraph()
+        G = nx.DiGraph()
         A = comm_graph(G)
         A.initialise(self.n_agents, self.n_bandits, self.type_alg)
         A.init_info_further(self.n_bandits)
@@ -323,19 +327,18 @@ class Simulation:
         
         return G
 
-        
+    #### if we want a random sample of initial cooperators
     def choose_initial_cooperators(self):
         population = self.n_agents
         self.initial_cooperators = rnd.sample(range(population), k = int(population/2))
 
         
-    def initialize_strategy(self):
-        """Initialize the strategy of agents (IN CASE WE IMPLEMENT TIT-FOR-TAT)"""
-        for n in range(self.n_agents):
-            if n in self.initial_cooperators:
-                self.agents.node[n]['strategy'] = "C"
-            else:
-                self.agents.node[n]['strategy'] = "D"
+    def initialise_strategy(self):
+        """Initialize the strategy of agents"""
+        self.agents._init_strategies_simple()
+        self.agents._init_stragies_4_state()
+        self.agents._init_players_simple()
+        self.agents._init_players_4_state()
 
                 
     def count_payoff(self):
@@ -385,19 +388,59 @@ class Simulation:
         F = transform_di_weight_simple(self.agents,0.95)
         return nx.degree_assortativity_coefficient(F)
         
+        
+    def hist_prop_share(self):
+        all_weights = np.array([self.agents.edges(data=True)[i][2]['weight'] for i in range(len(self.agents.edges()))])
+        plt.hist(all_weights)
+        plt.title('Histogram of edge weights at the end of the process')
+        plt.show()
+        
+        
+    #### Pre-game process
+    
+    def pre_game_one_episode(self,g = 1):
+        self.agents.select_arm(self.bandits, self.type_alg, gamma = g)
+        self.agents.share_info()
+        
+        
+    def pre_game(self, t=100, n_environments = 10):
+        accum_payoffs = dict()
+        for env in range(n_environments):
+            for i in range(t):
+                self.pre_game_one_episode()
+                self.agents.update_accum_payoff()
+            for i in range(self.n_agents):
+                accum_payoffs[i] = self.agents.node[i]['accumulated payoff']
+                #print (self.agents.node[i]['accumulated payoff'])
+            self.bandits = self.__generate_bandits()
+            self.agents.init_info_main(self.n_bandits,self.type_alg)
+            self.agents.init_info_further(self.n_bandits)
+            for i in range(self.n_agents):
+                self.agents.node[i]['accumulated payoff'] = accum_payoffs[i]
+        #print (accum_payoffs)
+        self.agents.update_fitness()
+
+        
     
     #### The game
         
-    def one_episode(self,t=None):
+    def one_episode(self,t):
         """Play and instance of the game - agents choose an arm and share information"""        
         self.agents.select_arm(self.bandits, self.type_alg)
         self.agents.share_info()
-        self.agents.evolve_sharing()
-        self.agents.update_sharing_weights()
+        self.agents.update_accum_payoff()
+        if t % self.t_change_strategy == 0:
+            self.agents.evolve_sharing()
+            self.agents.update_sharing_weights()
         
         
-    def avg_pay_off(self,t=None):
-        F = transform_di_weight_simple(self.agents,0.95)
+    def avg_pay_off(self,t=None,PD=False, G=None):
+        if PD:
+            F = transform_di_simple(G)
+            high_receivers_low_share = np.array([0])
+        else:
+            F = transform_di_weight_simple(self.agents,0.95)
+            high_receivers_low_share = np.array([self.agents.node[i]['rewards'][-1] for i in transform_high_receivers(self.agents,0.95)])
         max_clique_membership = [nx.node_clique_number(F,i)>=3 for i in F.nodes()]
         #print (max_clique_membership)
         in_clique = np.array([self.agents.node[i]['rewards'][-1] for i in [value for value in range(len(max_clique_membership)) if max_clique_membership[value]==True]])
@@ -406,35 +449,80 @@ class Simulation:
         #print (in_clique,not_in_clique,np.array([self.agents.node[i]['rewards'][-1] for i in range(len(self.agents))]))
         mean_clique_members = np.mean(in_clique)
         mean_non_clique_members = np.mean(not_in_clique)
+        mean_h_receivers_low_share = np.mean(high_receivers_low_share)
         mean_all = np.mean(np.array([self.agents.node[i]['rewards'][-1] for i in range(len(self.agents))]))
         oracle_performance = self.bandits.field[self.oracle].draw_sample()
-        return mean_all, mean_clique_members, mean_non_clique_members, prop_clique
+        return mean_all, mean_clique_members, mean_non_clique_members, prop_clique, mean_h_receivers_low_share
         
         
-    def play_game(self):
-        t_max = 500
+    def play_game(self,g = 1):
+        
+        self.pre_game(300,10)
+        #print (self.agents.nodes(data=True))
+        #print (self.agents.edges(data=True))
+        
+        t_max = self.t_max
         
         data = dict()
         
         for t in range(1,t_max+1):
-            self.one_episode()
-            mean_all,mean_clique,mean_non_clique, prop_clique = self.avg_pay_off()
+            self.one_episode(t)
+            mean_all,mean_clique,mean_non_clique, prop_clique, hrls = self.avg_pay_off()
             avg_weight,weight_var = self.summarise_weights()
             reciprocity = self.reciprocity()
             #print (reciprocity)
             clique_number = self.clique_n()
             clustering_coef = self.clustering_coef()
             #assortativity = self.degree_assortativity()
-            data[t] = mean_all,mean_clique,mean_non_clique,reciprocity,clique_number,clustering_coef, avg_weight,weight_var, prop_clique
+            data[t] = mean_all,mean_clique,mean_non_clique,reciprocity,clique_number,clustering_coef, avg_weight,weight_var, prop_clique, hrls
 
         return data
         
+        
+    #### Restless bandits
     
-    def plot_data(self):
-        t_max = 500
-        y_text = ['Average pay-off','Average pay-off(C)','Average pay-off(NC)','Reciprocity','Clique number','Average clustering coefficient','Average propensity to share','Variance of propensity to share','Proportion of agents in cliques']
-        y_lims = [(0,1.05),(0,1.05),(0,1.05),(0.2,1.05),(0,5),(-0.05,1.05),(0,1),(0,1),(0,1)]
-        data = self.play_game()
+    def game_restless_bandits(self):
+        lmb = 10
+        gamma = 1-1/lmb
+        t_max = self.t_max
+        data = dict()
+        
+        for r in range(1,3001):
+            if r % lmb == 0:
+                self.bandits.add_noise()
+            self.pre_game_one_episode(gamma)
+            self.agents.update_accum_payoff()
+            
+        for t in range(1,t_max+1):
+            if t % lmb == 0:
+                self.bandits.add_noise()
+            self.one_episode(t)
+            mean_all,mean_clique,mean_non_clique, prop_clique, hrls = self.avg_pay_off()
+            avg_weight,weight_var = self.summarise_weights()
+            reciprocity = self.reciprocity()
+            #print (reciprocity)
+            clique_number = self.clique_n()
+            clustering_coef = self.clustering_coef()
+            #assortativity = self.degree_assortativity()
+            data[t] = mean_all,mean_clique,mean_non_clique,reciprocity,clique_number,clustering_coef, avg_weight,weight_var, prop_clique, hrls
+
+        return data
+    
+    def plot_data(self,game_type = "play_game"):
+        t_max = self.t_max
+        if game_type == "play_game":
+            data = self.play_game()
+            y_text = ['Average pay-off','Average pay-off(C)','Average pay-off(NC)','Reciprocity','Clique number','Average clustering coefficient','Average propensity to share','Variance of propensity to share','Proportion of agents in cliques','Average payoff (free-riders)']
+            y_lims = [(0,1.05),(0,1.05),(0,1.05),(0.2,1.05),(0,5),(-0.05,1.05),(0,1),(0,1),(0,1),(0,1)]
+        elif game_type == "game_restless_bandits":
+            data = self.game_restless_bandits()
+            y_text = ['Average pay-off','Average pay-off(C)','Average pay-off(NC)','Reciprocity','Clique number','Average clustering coefficient','Average propensity to share','Variance of propensity to share','Proportion of agents in cliques','Average payoff (free-riders)']
+            y_lims = [(0,1.05),(0,1.05),(0,1.05),(0.2,1.05),(0,5),(-0.05,1.05),(0,1),(0,1),(0,1),(0,1)]
+        elif game_type == "PD":
+            data = self.iterated_PD_memory_one()
+            print (data)
+            y_text = ['Average pay-off','Average pay-off(C)','Average pay-off(NC)','Reciprocity','Clique number','Average clustering coefficient','Proportion of agents in cliques','Average payoff (free-riders)','Coop ratio']
+            y_lims = [(0,1.05),(0,1.05),(0,1.05),(0,1.05),(0,5),(-0.05,1.05),(0,1),(0,1),(0,1)]
         for i in range(len(y_lims)):
             sim_data = [data[t][i] for t in range(1,t_max+1)]
             #print (sim_data)
@@ -445,7 +533,7 @@ class Simulation:
             plt.ylabel(y_text[i])
             plt.title('')
             plt.ylim(y_lims[i])
-            plt.xlim(0,101)
+            plt.xlim(0,t_max+1)
             #plt.legend(loc="right", title="Propensity to share")
             #plt.show()
             plt.grid(axis='y', alpha=.3)
@@ -456,46 +544,57 @@ class Simulation:
             plt.gca().spines["left"].set_alpha(0.5)   
             # plt.legend(loc='upper right', ncol=2, fontsize=12)
             plt.show()
+        #self.hist_prop_share()
+            
+            
         
             
 class Multi_Sim:
     
-    def __init__(self, n_agents, n_bandits, type_bandits, type_alg, n_steps):
+    def __init__(self, n_agents, n_bandits, type_bandits, type_alg, n_steps, t_change_strategy = 10):
         self.n_agents = n_agents
         self.n_bandits = n_bandits
         self.type_bandits = type_bandits
         self.type_alg = type_alg
         self.n_steps = n_steps
+        self.t_change_strategy = t_change_strategy
         self.sims = self.__generate_sims()
+        self.t_max = 500
+        
         
     def __generate_sims(self):
         sims = []
         for i in range(self.n_steps+1):
-            sims.append(Simulation(self.n_agents, self.n_bandits, self.type_bandits, self.type_alg, True, i/self.n_steps))
+            sims.append(Simulation(self.n_agents, self.n_bandits, self.type_bandits, self.type_alg,self.t_change_strategy,True, i/self.n_steps))
         return sims
         
-    def get_data(self):
+    def get_data(self, game_type = "play_game"):
         data = dict()
         for i in range(self.n_steps+1):
-            data[i/self.n_steps] = self.sims[i].play_game()
+            if game_type == "play_game":
+                data[i/self.n_steps] = self.sims[i].play_game()
+            elif game_type == "game_restless_bandits":
+                data[i/self.n_steps] = self.sims[i].game_restless_bandits()
+            else:
+                raise TypeError ("Cannot determine game type")
         return data
         
-    def plot_data(self):
-        y_text = ['Average pay-off','Average pay-off(C)','Average pay-off(NC)','Reciprocity','Clique number','Average clustering coefficient','Average propensity to share','Variance of propensity to share','Proportion of agents in cliques']
-        y_lims = [(0,1.05),(0,1.05),(0,1.05),(0.2,1.05),(0,5),(-0.05,1.05),(0,1),(0,1),(0,1)]
-        data = self.get_data()
-        time_axis = [j for j in range(1,101)]
+    def plot_data(self,game_type = "play_game"):
+        y_text = ['Average pay-off','Average pay-off(C)','Average pay-off(NC)','Reciprocity','Clique number','Average clustering coefficient','Average propensity to share','Variance of propensity to share','Proportion of agents in cliques','Average payoff (HCLS)']
+        y_lims = [(0,1.05),(0,1.05),(0,1.05),(0.2,1.05),(0,5),(-0.05,1.05),(0,1),(0,1),(0,1),(0,1)]
+        data = self.get_data(game_type)
+        time_axis = [j for j in range(1,self.t_max+1)]
         for i in range(len(y_lims)):
             plt.figure()
             for j in range(self.n_steps+1):
-                sim_data = [data[j/self.n_steps][t][i] for t in range(1,101)]
+                sim_data = [data[j/self.n_steps][t][i] for t in range(1,self.t_max+1)]
                 #print (sim_data)
                 plt.plot(time_axis, sim_data, label = round(j/self.n_steps,2))
             plt.xlabel('Time')
             plt.ylabel(y_text[i])
             plt.title('')
             plt.ylim(y_lims[i])
-            plt.xlim(0,130)
+            plt.xlim(0,self.t_max+1)
             plt.legend(loc='best', title="Propensity to share")
             #plt.show()
             plt.grid(axis='y', alpha=.3)
@@ -506,18 +605,114 @@ class Multi_Sim:
             plt.gca().spines["left"].set_alpha(0.5)   
             # plt.legend(loc='upper right', ncol=2, fontsize=12)
             plt.show()
+        for s in self.sims:
+            print ('Propensity to share:',s.prop_share)
+            s.hist_prop_share()
     
 
 
+class Simulation_PD:
+    """Class for simulations of ietrated PD games"""
+    
+    def __init__(self, n_agents, n_bandits, type_bandits, type_alg, n_gen):
+        """
+        Bandits have several options, give one of those options as type_bandits:
+            1. bernoulli_arms
+            2. truncated_gaussian_arms
+        Type of algorithms:
+            1. discounted_thompson
+            2. discounted_thompson_general
+        """
+
+        self.n_agents = n_agents
+        self.n_bandits = n_bandits
+        self.type_bandits = type_bandits
+        self.type_alg = type_alg
+        self.agents = self.__generate_agents()
+        self.bandits = self.__generate_bandits()
+        self.oracle = self.__find_oracle()
+        self.t_max = 100
+        self.n_gen = n_gen
+        
+    def __generate_agents(self):
+        A = NOC(self.n_agents, self.n_bandits, self.type_alg)
+        A.init_players_first_gen()
+        #print (A.nodes(data=True))
+        return A
+        
+        
+    def __generate_bandits(self):
+        return self.type_bandits(self.n_bandits)
+        
+    
+    def __find_oracle(self):
+        return np.argmax(np.array(self.bandits.field_exp))
+    
+    
+    def one_episode(self, gamma):
+        """Play and instance of the game - agents choose an arm and share information"""        
+        self.agents.select_arm(self.bandits, self.type_alg, gamma)
+        self.agents.play_game_memory_one()
+        self.agents.update_accum_payoff()
+        
+    def one_generation(self):
+        lmb = 10
+        gamma = 1-1/lmb
+        t_max = self.t_max
+        #data = dict()
+            
+        for t in range(1,t_max+1):
+            if t % lmb == 0:
+                self.bandits.add_noise()
+            self.one_episode(gamma)
+        self.agents.perform_selection()
+        self.agents.plot_loc_all()
+        self.agents.plot_loc_parents()
+        self.agents.create_offsprings(self.type_alg)
+        
+    def mult_generations(self):
+        for n in range(self.n_gen):
+            self.one_generation()
+        plt.show()
+    
+        
+    def create_animation(self):
+        dt = 1./30
+        fig = plt.figure()
+        fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
+        ax = fig.add_subplot(111, aspect='equal', autoscale_on=False, xlim=(0, 1), ylim=(0, 1))
+        particles, = ax.plot([], [], 'bo', ms=6)
+        time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
+        
+        
+    def init_anim(self):
+        """initialize animation"""
+        particles.set_data([], [])
+        #time_text.set_text('')
+        return particles
+    
+    def animate(self,i):
+        """perform animation step"""
+        dt = 1./30
+        self.one_generation()
+        parents_loc = self.agents.get_locations_parents()
+        x = [i[0] for i in parents_loc]
+        y = [i[1] for i in parents_loc]
+        particles.set_data(x,y)
+        #time_text.set_text('generation = %.1f' % i)
+        return particles
+    
+    def display_animation(self):
+        self.create_animation()
+        ani = animation.FuncAnimation(fig, self.animate, frames=600, interval=10, blit=True, init_func=self.init_anim)
+        plt.show()
+        
+
+
 def main():
-    """
-    S = Simulation(10, 20, bernoulli_arms, discounted_thompson, const=False)
-    for i in range(20):
-        S.one_episode()
-    print (S.agents.nodes(data=True))
-    """
-    #D = Simulation(10, 20, bernoulli_arms, discounted_thompson, True)
-    #print (D.agents.nodes(data=True))
-    #print (S.agents.nodes(data=True))
-    MS = Multi_Sim(20, 50, bernoulli_arms, discounted_thompson, 3)
-    MS.plot_data()
+    PD = Simulation_PD(20, 60, bernoulli_arms, discounted_thompson, 20)
+    PD.mult_generations()
+
+
+if __name__ == "__main__":
+    main()

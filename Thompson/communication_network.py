@@ -4,26 +4,40 @@ Network of interactions
 """
 
 import matplotlib.pyplot as plt
+from IPython import display
 import numpy as np
 import random
 import networkx as nx
 import math
 from scipy import stats
-from bitarray import bitarray
 import pickle
 import community
-from bitarray import bitarray
 import copy
+import matplotlib.animation as animation
+from collections import Counter
 
 from mab_algorithms import *
 from arms import *
+from PD import *
+from evolutionary_algs import *
 
+np.random.seed(None)
 
 
 # K is number of arms of the multi-armed bandit
 global b, N, payoff, K
 
 K = 50
+
+
+
+def bound_0_1(r):
+    if r>1:
+        return 1
+    elif r<0:
+        return 0
+    else:
+        return r
 
 
 def add_weights_complete_graph(graph, comm_prop = 0.5, const = True):
@@ -143,12 +157,13 @@ def initialise_network_arms(n_players, arms,alg=discounted_thompson,gamma = 1,co
 
 def init_sharing(network,const = True, prop_share = 0, func = sharing_cycle):
     for i in range(len(network)):
-        neighbors = network.node[i]['neighbors']
+        neighbors = [neighbor for neighbor in network.node[i]['neighbors']]
         if const:
             sharing_vector = [inverse_sigmoid_func(prop_share) for j in range(len(network.neighbors(i)))]
         else:
             sharing_vector = [sharing_cycle(i,j,len(network)) for j in neighbors] # TO-DO: UPDATE
-        network.node[i]['propensity to share'] = {neighbors[i]: sharing_vector[i] for i in range(len(sharing_vector))}
+        for j in range(len(sharing_vector)):
+            network.node[i]['propensity to share'] = {neighbors[j]: sharing_vector[j] for j in range(len(sharing_vector))}
         network.node[i]['share information'] = sigmoid(network.node[i]['propensity to share'])
 
 def add_noise_dict(d,mu,sigma):
@@ -161,6 +176,11 @@ def add_noise_dict(d,mu,sigma):
     return b
     
     
+def update_accum_payoff(network):
+    for i in range(len(network)):
+        network.node[i]['accumulated payoff'] += network.node[i]['rewards'][-1]
+    
+
 def sim_annealing_cooling(network,t):
     mean_accum_payoff = np.mean(accum_payoff_exp(network,t))
     for i in range(len(network)):
@@ -171,14 +191,16 @@ def sim_annealing_cooling(network,t):
         
     
 def evolve_sharing(network):
-    mean_accum_payoff = np.mean(accum_payoff(network))
+    mean_accum_payoff = 0
     for i in range(len(network)):
-        acc_payoff = np.sum(network.node[i]['rewards'])
+        mean_accum_payoff += network.node[i]['accumulated payoff']/len(network)
+    for i in range(len(network)):
+        acc_payoff = network.node[i]['accumulated payoff']
         if acc_payoff == 0:
             if mean_accum_payoff == 0:
                 epsilon = 0
             else:
-                epsilon = 1
+                epsilon = math.pi
         else:
             epsilon = mean_accum_payoff/acc_payoff
         network.node[i]['propensity to share'] = add_noise_dict(network.node[i]['propensity to share'],0,epsilon)
@@ -191,7 +213,6 @@ def init(network,K) :
     """
     #global N 
     n = len(network)
-    cnt = 0
     network.graph['degrees'] = [network.degree(node) for node in network.nodes()] #just to check for now, as we know the graph is complete
     for i in range(n) :
         network.node[i]['payoff'] = 0 #average pay-off from all observed rewards
@@ -199,12 +220,14 @@ def init(network,K) :
         network.node[i]['next strategy'] = None
         network.node[i]['neighbors'] = network.neighbors(i) #all other nodes for now
         network.node[i]['fitness'] = 0
+        network.node[i]['accumulated payoff'] = 0
         network.node[i]['arm'] = 0 #current location of the agent
         network.node[i]['prior means'] = np.zeros(K)
         network.node[i]['m_bar'] = np.zeros(K)
         network.node[i]['n'] = np.zeros(K)
         network.node[i]['prior variance'] = 1
         network.node[i]['variance'] = 1
+        network.node[i]['selection probability'] = 0
         network.node[i]['game played with'] = np.empty(0) #with whom was the game already played? i.e. with whome has this individual tried
                                                         # to share information?
         network.node[i]['information shared with'] = np.empty(0) # with whom of the neighbors was a subset of the information set during
@@ -346,7 +369,7 @@ print (net.nodes(data=True))
 """
 
 
-class comm_graph(nx.MultiDiGraph):
+class comm_graph(nx.DiGraph):
     """Some useful methods for multi directed graph"""
     pos=None
     _label=None
@@ -432,6 +455,18 @@ class comm_graph(nx.MultiDiGraph):
             #print (self.nodes(data=True))
             for j in self.node[i]['neighbors']:
                 self.edge[i][j][0]['weight'] = self.node[i]['share information'][j]
+
+
+    def update_accum_payoff(self):
+        update_accum_payoff(self)
+
+        
+    def update_fitness(self):
+        mean_accum_payoff = 0
+        for i in range(len(self)):
+            mean_accum_payoff += self.node[i]['accumulated payoff']/len(self)
+        for i in range(len(self)):
+            self.node[i]['fitness'] = self.node[i]['accumulated payoff']/mean_accum_payoff
     
     
     def run_round_sim(self,arms,alg=discounted_thompson,gamma = 1, field=[],first_iter=False):
@@ -441,7 +476,7 @@ class comm_graph(nx.MultiDiGraph):
         self.select_arm(arms, alg ,gamma, field, first_iter)
         
     
-        
+
     def levels_layout(self,ranks=None,xpos=None):
         pos={}
         refpos=nx.spring_layout(self)
@@ -555,3 +590,196 @@ class comm_graph(nx.MultiDiGraph):
         plt.show()
         
         
+        
+        
+class NOC(nx.DiGraph):
+    """Class for Iterated PD games and information sharing"""
+    
+    pos=None
+    _label="Network of interactions"
+    
+    
+    def __init__(self, n, n_arms, alg=discounted_thompson):
+        super().__init__()
+        self.n = n
+        self.n_arms = n_arms
+        self.add_nodes_own(n)
+        self.add_edges_from((u,v) for u in range(len(self)) for v in range(len(self)) if u!=v)
+        self.init_info_main(n_arms, alg)
+        self.init_info_further(n_arms)
+        
+        
+        
+    def init_info_main(self, n_arms, alg=discounted_thompson, gamma = 1):
+        """
+        Initialises a position of individuals with regards to arms of the MAB
+        """
+        for i in range(len(self)):
+            self.node[i]['alloc_seq'] = np.empty(0) #this will be the array of payoff from the multi-armed bandit
+            self.node[i]['rewards'] = np.empty(0)
+            self.node[i]['S'] = np.zeros(n_arms) # for Thompson algs
+            self.node[i]['F'] = np.zeros(n_arms) # for Thompson algs
+
+    
+    def init_info_further(self,n_arms):
+        init(self,n_arms)
+
+
+    def add_nodes_own(self,n):
+        self.add_nodes_from([i for i in range(n)])
+
+    def init_players_first_gen(self):
+        """Initialise players for each node.
+        A player is characterised by a triple (y,p,q), where y is the probability of initially playing C,
+        p=P(C|C') and q=P(C|D')
+        """
+        for n in range(len(self)):
+            neighbors = [i for i in self.node[n]['neighbors']]
+            #print (neighbors)
+            r = np.random.uniform(0,1,3)
+            initial_C = r[0]
+            p,q = np.amax(r[1:]), np.amin(r[1:])
+            x,y = random.random(), random.random()
+            self.node[n]['Player'] = ReactivePlayer((p,q),initial_C,n,neighbors,(x,y))            
+    
+        
+    def add_e_coop(self):
+        """Add edges with proportion of C strategies played as weights""" 
+        self.add_weighted_edges_from((u,v,toroidal_distance(network.node[u]['Player'].loc,network.node[v]['Player'].loc)) for u in range(len(self)) for v in range(len(self)) if u!=v) 
+        
+        
+    def play_game_memory_one(self,ret = False):
+        """
+        Performs a 2-player Prisoner's Dilemma and shares information accordingly
+        """
+        G = nx.DiGraph()
+        for i in range(len(self)):
+            for j in range(i):
+                si,sj = simultaneous_play(self.node[i]['Player'], self.node[j]['Player'])
+                if si==Action.C:
+                    self.node[i]['information shared with'] = np.append(self.node[i]['information shared with'],j)
+                    # i shares with j:
+                    s = self.node[i]['alloc_seq'][-1]
+                    if self.node[i]['rewards'][-1]==1:
+                        self.node[j]['S'][s] += 1
+                    else:
+                        self.node[j]['F'][s] += 1
+                    G.add_edge(i,j)
+                if sj==Action.C:
+                    self.node[j]['information shared with'] = np.append(self.node[j]['information shared with'],i)
+                    # i shares with j:
+                    s = self.node[j]['alloc_seq'][-1]
+                    if self.node[j]['rewards'][-1]==1:
+                        self.node[i]['S'][s] += 1
+                    else:
+                        self.node[i]['F'][s] += 1
+                    G.add_edge(i,j)
+        if ret:
+            return G
+
+    def select_arm(self,arms, alg=discounted_thompson, gamma = 1, field = [],first_iter=False):
+        arm_selection(self, arms, alg, gamma, field, first_iter)
+        
+    def update_accum_payoff(self):
+        update_accum_payoff(self)
+
+    def perform_selection(self):
+        RL = roulette_wheel(self)
+        self.parents = RL.roulette_wheel_pop()
+        
+    def get_parents_data(self,parents: list=[]):
+        parent_data=[]
+        for i,parent in enumerate(parents):
+            parent_data.append(self.node[parent]['Player'])
+        return parent_data
+        
+    def create_offsprings(self, alg = discounted_thompson) -> None:
+        parent_data = self.get_parents_data(self.parents)
+        self.__init__(self.n, self.n_arms, alg)
+        for i,parent in enumerate(parent_data):
+            neighbors = [neighbor for neighbor in self.node[i]['neighbors']]
+            initial_C = bound_0_1(parent.initial_prob + np.random.normal(0,0.05))
+            p,q = bound_0_1(parent.prob[0] + np.random.normal(0,0.05)), bound_0_1(parent.prob[1] + np.random.normal(0,0.05))
+            x,y = (parent.loc[0] + np.random.normal(0,0.05)) % 1, (parent.loc[1] + np.random.normal(0,0.05)) % 1
+            self.node[i]['Player'] = ReactivePlayer((p,q),initial_C,i,neighbors,(x,y))           
+            
+            
+    def get_locations_all(self):
+        all_loc = [self.node[n]['Player'].loc for n in range(len(self))]
+        return all_loc
+        
+    def get_locations_parents(self):
+        parents_loc = [self.node[n]['Player'].loc for n in self.parents]
+        return parents_loc
+
+    def plot_loc_all(self):
+        plt.clf()
+        alloc_loc = self.get_locations_all()
+        x = [i[0] for i in alloc_loc]
+        y = [i[1] for i in alloc_loc]
+        plt.scatter(x,y,color='r')
+        plt.axis([-0.1,1.1,-0.1,1.1])
+        display.display(plt.gcf())
+        display.clear_output(wait=True)            
+            
+    def plot_loc_parents(self):
+        plt.clf()
+        parents_loc = self.get_locations_parents()
+        x = [i[0] for i in parents_loc]
+        y = [i[1] for i in parents_loc]
+        plt.scatter(x,y,color='g')
+        plt.axis([-0.1,1.1,-0.1,1.1])
+        display.display(plt.gcf())
+        display.clear_output(wait=True)
+        
+    def get_coop_data(self):
+        """get cooperation data at the end of a generation"""
+        all_coop_ratios = np.empty(0)
+        all_payoffs = np.empty(0)
+        nx.create_empty_copy(self)
+        for n in range(len(self)):
+            neighbors = [neighbor for neighbor in self.node[n]['neighbors']]
+            all_payoffs = np.append(all_payoffs,self.node[n]['accumulated payoff'])
+            for i in neighbors:
+                coop_ratio = self.node[n]['Player'].history.histories[i].cooperations/len(self.node[n]['Player'].history.histories[i])
+                all_coop_ratios = np.append(all_coop_ratios,coop_ratio)
+                self.add_weighted_edges_from[(n,i,coop_ratio)]
+        return all_coop_ratios
+                
+    def get_game_data(self):
+        """get all game histories over one generation"""
+        game_data=[]
+        for n in range(len(self)):
+            neighbors = [neighbor for neighbor in self.node[n]['neighbors']]
+            for i in neighbors:
+                game_data.append(self.node[n]['Player'].history.histories[i])
+        return game_data
+    
+    def organise_game_data(self):
+        game_data=self.get_game_data()
+        data_rounds = dict()
+        for t in range(1,len(game_data[0])+1):
+            data_rounds[t] = [hist[t-1] for hist in game_data]
+        return data_rounds
+    
+    def get_hist_distribution(self):
+        """Get the C/D distribution at the end of a generation"""
+        distribution = Counter({})
+        for n in range(len(self)):
+            for j in range(n):
+                distribution += self.node[n]['Player'].history.histories[j].state_distribution
+        return distribution
+    
+    def get_dist_3_players(self):
+        """Get the state distribution of the player with the highest,lowest and median payoffs"""
+        all_payoffs = np.array([self.node[n]['accumulated payoff'] for n in range(len(self))])
+        lowest_payoff_dist = self.node[numpy.argmin(all_payoffs)]['Player'].history.distribution
+        highest_payoff_dist = self.node[numpy.argmax(all_payoffs)]['Player'].history.distribution
+        return lowest_payoff_dist, highest_payoff_dist
+    
+    
+        
+        
+    
+    
+    

@@ -66,10 +66,50 @@ def transform_di_weight_simple(network,treshold):
             if network.edge[i][j][0]['weight'] > treshold and network.edge[j][i][0]['weight'] > treshold:
                 G.add_edge(i,j)
     return G
+    
+def transform_di_simple(network):
+    G = nx.Graph()
+    G.add_nodes_from(network)
+    for i in range(len(network)):
+        for j in range(len(network)):
+            if (i,j) in network.edges() and (j,i) in network.edges():
+                G.add_edge(i,j)
+    return G
+    
+    
+def transform_high_receivers(network,treshold):
+    l = {}
+    free_riders = []
+    for i in range(len(network)):
+        for j in range(len(network)):
+            if j!=i:
+                if network.edge[i][j][0]['weight'] <= treshold and network.edge[j][i][0]['weight'] > treshold:
+                    l[i] = l.get(i,0)+1
+    for key,value in l.items():
+        if value >= 2:
+            free_riders.append(key)
+    return free_riders
+    
+    
+def high_receivers_simple(network):
+    l = {}
+    free_riders = []
+    for i in range(len(network)):
+        for j in range(len(network)):
+            if j!=i:
+                if (i,j) in network.edges() and (j,i) in network.edges():
+                    l[i] = l.get(i,0)+1
+    for key,value in l.items():
+        if value >= 2:
+            free_riders.append(key)
+    return free_riders
 
 
 def k_clique_communities(G, k, cliques=None):
-    """Find k-clique communities in graph using the percolation method.
+    """
+    Adapted from the networkx library. 
+    
+    Find k-clique communities in graph using the percolation method.
 
     A k-clique community is the union of all cliques of size k that
     can be reached through adjacent (sharing k-1 nodes) k-cliques.
@@ -165,6 +205,18 @@ def draw_cliques(G):
         nx.draw_networkx_nodes(G,pos=coords,nodelist=clique,node_color=draw_circle_around_clique(clique,coords))
     
     plt.show()
+    
+
+def overall_reciprocity(G):
+    """Compute the reciprocity for the whole graph.
+    """
+    n_all_edge = G.number_of_edges()
+    n_overlap_edge = (n_all_edge - G.to_undirected().number_of_edges()) * 2
+
+    if n_all_edge == 0:
+        raise NetworkXError("Not defined for empty graphs")
+
+    return float(n_overlap_edge) / float(n_all_edge)
     
     
 """

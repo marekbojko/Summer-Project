@@ -10,21 +10,18 @@ import random
 import networkx as nx
 import math
 from scipy import stats
-from bitarray import bitarray
 import pickle
 import community
-from bitarray import bitarray
 import scipy
 import scipy.fftpack
 import sys
-import seaborn as sns
 from random import gauss
 from numpy.random import standard_normal
 from scipy.special import erf
 from scipy.stats import norm
 from scipy.stats import bernoulli
 import scipy.fftpack
-from IPython import display
+
 
 #sns.set_style('darkgrid')
 np.random.seed(None)

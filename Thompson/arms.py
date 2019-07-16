@@ -10,7 +10,7 @@ from numpy.random import standard_normal
 from scipy.special import erf
 import random
 
-
+np.random.seed(None)
 
 oo = float('+inf') #+infinity
 
@@ -183,6 +183,9 @@ class truncated_gaussian_arms(object):
         self.field = [Gaussian_0_1(random.random()) for i in range(self.n)]
         self.field_exp = [arm.mu for arm in self.field]
 
+    def add_noise(self):
+        self.field = [bernoulli_arm(arm.expectation+np.random.normal(0,0.05)) for arm in self.field]
+
         
 #A = truncated_gaussian_arms(10)
 #print (A.field[0].draw())
@@ -191,12 +194,12 @@ class bernoulli_arm(object):
     def __init__(self,p):
         self.p=p
         self.expectation = p
-
+        
     '''
     pull an arm according to Bernoulli, return 1 or 0
     '''
     def draw_sample(self):
-        # random.random() Return the next random floating point number in the range [0.0, 1.0).
+        # random.random() Return the next random floating point number in the range [0.0, 1.0)
         return float(random.random()<self.p)
     
         
@@ -205,3 +208,6 @@ class bernoulli_arms(object):
         self.n = n
         self.field = [bernoulli_arm(random.random()) for i in range(self.n)]
         self.field_exp = [arm.expectation for arm in self.field]
+
+    def add_noise(self):
+        self.field = [bernoulli_arm(arm.expectation+np.random.normal(0,0.05)) for arm in self.field]
