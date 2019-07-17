@@ -1,13 +1,7 @@
 # Summer Project
 
-Run Thompson/simple_sims to run a simulation of agents solving Bayesian multi-armed bandits and sharing information 
+**Animation (50 agents, 200 arms, 100 repetition in a generation, 30 generations):
 
-Note: I still haven't managed to install Jupyter notebook. The kernel kept dying and so I updates anaconda. Now I'm unable to download Jupyter again. I'll try to resolve the issue asap.
+Summer-Project/Thompson/basic_animation.mp4
 
-To see an animation with a low number of iterations, run:
-
-from evolving_comm_network import *
-
-PD = Simulation_PD(25, 80, bernoulli_arms, discounted_thompson, 10)
-
-PD.mult_generations()
+**
