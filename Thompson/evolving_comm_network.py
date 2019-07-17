@@ -15,7 +15,10 @@ import time
 import copy
 import datetime
 
-import matplotlib.animation as animation
+from matplotlib import animation
+
+plt.rcParams['animation.ffmpeg_path'] = 'C:\\FFmpeg\\bin\\ffmpeg.exe'
+FFwriter = animation.FFMpegWriter()
 
 plt.style.use('seaborn-white')
 np.random.seed(None)
@@ -631,11 +634,13 @@ class Simulation_PD:
         self.agents = self.__generate_agents()
         self.bandits = self.__generate_bandits()
         self.oracle = self.__find_oracle()
-        self.t_max = 100
+        self.t_max = 500
         self.n_gen = n_gen
+        
         
     def __generate_agents(self):
         A = NOC(self.n_agents, self.n_bandits, self.type_alg)
+        A.init_graph()
         A.init_players_first_gen()
         #print (A.nodes(data=True))
         return A
@@ -666,52 +671,82 @@ class Simulation_PD:
                 self.bandits.add_noise()
             self.one_episode(gamma)
         self.agents.perform_selection()
-        self.agents.plot_loc_all()
-        self.agents.plot_loc_parents()
-        self.agents.create_offsprings(self.type_alg)
+        #self.agents.plot_loc_all()
+        #self.agents.plot_loc_parents()
+        self.agents.plot_coop_payoff()
+        self.agents.plot_game_data()
+        self.agents.barplot_hist_distribution()
+        self.agents.analyse_communities()
+
+    def one_generation_anim(self):
+        lmb = 10
+        gamma = 1-1/lmb
+        t_max = self.t_max
+        #data = dict()
+            
+        for t in range(1,t_max+1):
+            if t % lmb == 0:
+                self.bandits.add_noise()
+            self.one_episode(gamma)
+        self.agents.perform_selection()
         
     def mult_generations(self):
+        reciprocity=[]
+        clique_number=[]
+        mean_coop=[]
+        var_coop=[]
         for n in range(self.n_gen):
             self.one_generation()
+            reciprocity.append(self.agents.reciprocity_gen())
+            clique_number.append(self.agents.clique_number_gen())
+            mean_coop.append(self.agents.summarise_weights_gen()[0])
+            var_coop.append(self.agents.summarise_weights_gen()[1])
+            self.agents.create_offsprings(self.type_alg)
+        return reciprocity, clique_number, mean_coop, var_coop
+    
+    def plot_data_mult_gen(self):
+        reciprocity, clique_number, mean_coop, var_coop = self.mult_generations()
+        t = [i for i in range(1,self.n_gen+1)]
+        plt.clf()
+        plt.x_lim(0,self.n_gen+1)
+        plt.plot(t,reciprocity)
+        plt.y_lim(0,1)
+        plt.title('reciprocity')
         plt.show()
-    
-        
-    def create_animation(self):
-        dt = 1./30
-        fig = plt.figure()
-        fig.subplots_adjust(left=0, right=1, bottom=0, top=1)
-        ax = fig.add_subplot(111, aspect='equal', autoscale_on=False, xlim=(0, 1), ylim=(0, 1))
-        particles, = ax.plot([], [], 'bo', ms=6)
-        time_text = ax.text(0.02, 0.95, '', transform=ax.transAxes)
-        
-        
-    def init_anim(self):
-        """initialize animation"""
-        particles.set_data([], [])
-        #time_text.set_text('')
-        return particles
-    
-    def animate(self,i):
-        """perform animation step"""
-        dt = 1./30
-        self.one_generation()
-        parents_loc = self.agents.get_locations_parents()
-        x = [i[0] for i in parents_loc]
-        y = [i[1] for i in parents_loc]
-        particles.set_data(x,y)
-        #time_text.set_text('generation = %.1f' % i)
-        return particles
-    
-    def display_animation(self):
-        self.create_animation()
-        ani = animation.FuncAnimation(fig, self.animate, frames=600, interval=10, blit=True, init_func=self.init_anim)
+        plt.plot(t,clique_number)
+        plt.y_lim(0,5)
+        plt.title('clique number')
         plt.show()
+        plt.plot(t,mean_coop)
+        plt.y_lim(0,1)
+        plt.title('Mean cooperation ratio')
+        plt.show()
+        plt.plot(t,var_coop)
+        plt.y_lim(0,1)
+        plt.title('Variance of cooperation ratios')
+        plt.show()
+        
+    def mult_generation_anim(self):
+        loc_all=dict()
+        loc_parents=dict()
+        mean_comm_coop = dict()
+        len_comm_coop = dict()
+        mean_comm_spatial = dict()
+        len_comm_spatial = dict()
+        for n in range(self.n_gen):
+            self.one_generation_anim()
+            loc_all[n] = self.agents.get_locations_all()
+            loc_parents[n] = self.agents.get_locations_parents()
+            mean_comm_coop[t], len_comm_coop[t] = self.agents.analyse_communities(False)
+            mean_comm_spatial[t], len_comm_spatial[t] = self.agents.analyse_communities(True)
+            self.agents.create_offsprings(self.type_alg)
+        return loc_all, loc_parents, mean_comm_coop, len_comm_coop,mean_comm_spatial,len_comm_spatial
         
 
 
 def main():
-    PD = Simulation_PD(25, 80, bernoulli_arms, discounted_thompson, 10)
-    PD.mult_generations()
+    PD = Simulation_PD(15, 60, bernoulli_arms, discounted_thompson, 10)
+    locs = PD.plot_data_mult_gen()
 
 
 if __name__ == "__main__":

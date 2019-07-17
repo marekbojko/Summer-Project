@@ -451,7 +451,7 @@ class MemoryOnePlayer(Player):
             return self._initial
         # Determine which probability to use
         p = self._four_vector[(self.history.histories[opponent_index][-1], opponent.history.histories[self.player_index][-1])]
-        p_share = p*math.exp(-toroidal_distance(self.loc,opponent.loc))
+        p_share = p*math.exp(-toroidal_distance(self.loc,opponent.loc)/10)
         #print (p)
         # Draw a random number in [0, 1] to decide
         return random_choice(p_share)

@@ -61,9 +61,10 @@ def record_coop_rates(network, data_array):
 def transform_di_weight_simple(network,treshold):
     G = nx.Graph()
     G.add_nodes_from(network)
+    #print (network.edges(data=True))
     for i in range(len(network)):
         for j in range(i):
-            if network.edge[i][j][0]['weight'] > treshold and network.edge[j][i][0]['weight'] > treshold:
+            if network[i][j]['weight'] > treshold and network[j][i]['weight'] > treshold:
                 G.add_edge(i,j)
     return G
     
