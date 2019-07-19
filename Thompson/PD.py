@@ -25,10 +25,12 @@ np.random.seed(None)
 def toroidal_distance (pos_1: Tuple[float,float], pos_2: Tuple[float,float]) -> float:
     dx = abs(pos_1[0]-pos_2[0])
     dy = abs(pos_1[1]-pos_2[1])
+    """
     if dx > 0.5:
         dx = 1 - dx
     if dy > 0.5:
         dy = 1 - dy
+    """
     return math.sqrt(dx**2 + dy**2)
 
 
@@ -422,6 +424,7 @@ class MemoryOnePlayer(Player):
         """
         super().__init__()
         self._initial = random_choice(initial_prob)
+        self.initial_prob = initial_prob
         self.set_initial_four_vector(four_vector)
         self._history = history_all(coplayers)
         self.player_index = player_index
@@ -448,10 +451,10 @@ class MemoryOnePlayer(Player):
 
     def strategy(self, opponent: Player, opponent_index: int) -> Action:
         if len(opponent.history.histories[self.player_index]) == 0:
-            return self._initial
+            return random_choice(self.initial_prob*math.exp(toroidal_distance(self.loc,opponent.loc)*math.log(0.05)/math.sqrt(2)))
         # Determine which probability to use
         p = self._four_vector[(self.history.histories[opponent_index][-1], opponent.history.histories[self.player_index][-1])]
-        p_share = p*math.exp(-toroidal_distance(self.loc,opponent.loc)/10)
+        p_share = p*math.exp(toroidal_distance(self.loc,opponent.loc)*math.log(0.05)/math.sqrt(2))
         #print (p)
         # Draw a random number in [0, 1] to decide
         return random_choice(p_share)
@@ -480,7 +483,7 @@ class ReactivePlayer(MemoryOnePlayer):
         self.name = "%s: %s" % (self.name, probabilities)
         
         
-
+"""
 
 P1 = ReactivePlayer((0.5,0.4),0.5,1,[2,3])
 P2 = ReactivePlayer((0.8,0.4),0.5,2,[1,3])
@@ -490,3 +493,7 @@ for t in range(5):
     simultaneous_play(P2, P3)
 print (P1.history.histories[2])
 print (P1.history.histories[2].state_distribution)
+
+print (exp(0.5*math.log(0.15)/math.sqrt(2)))
+
+"""

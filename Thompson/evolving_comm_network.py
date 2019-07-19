@@ -562,7 +562,7 @@ class Multi_Sim:
         self.n_steps = n_steps
         self.t_change_strategy = t_change_strategy
         self.sims = self.__generate_sims()
-        self.t_max = 500
+        self.t_max = 100
         
         
     def __generate_sims(self):
@@ -634,14 +634,14 @@ class Simulation_PD:
         self.agents = self.__generate_agents()
         self.bandits = self.__generate_bandits()
         self.oracle = self.__find_oracle()
-        self.t_max = 500
+        self.t_max = 100
         self.n_gen = n_gen
         
         
     def __generate_agents(self):
         A = NOC(self.n_agents, self.n_bandits, self.type_alg)
         A.init_graph()
-        A.init_players_first_gen()
+        A.init_players_first_gen_simple_sample()
         #print (A.nodes(data=True))
         return A
         
@@ -671,12 +671,12 @@ class Simulation_PD:
                 self.bandits.add_noise()
             self.one_episode(gamma)
         self.agents.perform_selection()
-        #self.agents.plot_loc_all()
+        self.agents.plot_loc_all()
         #self.agents.plot_loc_parents()
         self.agents.plot_coop_payoff()
-        self.agents.plot_game_data()
-        self.agents.barplot_hist_distribution()
-        self.agents.analyse_communities()
+        #self.agents.plot_game_data()
+        #self.agents.barplot_hist_distribution()
+        #self.agents.analyse_communities()
 
     def one_generation_anim(self):
         lmb = 10
@@ -695,35 +695,54 @@ class Simulation_PD:
         clique_number=[]
         mean_coop=[]
         var_coop=[]
+        n_clusters=[]
+        max_cluster=[]
+        n_clusters_louvain=[]
+        max_cluster_louvain=[]
+        n_clusters_k_clique=[]
+        max_clusters_k_clique=[]
         for n in range(self.n_gen):
             self.one_generation()
             reciprocity.append(self.agents.reciprocity_gen())
             clique_number.append(self.agents.clique_number_gen())
-            mean_coop.append(self.agents.summarise_weights_gen()[0])
-            var_coop.append(self.agents.summarise_weights_gen()[1])
-            self.agents.create_offsprings(self.type_alg)
-        return reciprocity, clique_number, mean_coop, var_coop
+            n_clusters.append(self.agents.analyse_clustering()[0])
+            max_cluster.append(self.agents.analyse_clustering()[1])
+            n_clusters_louvain.append(self.agents.analyse_communities_louvain()[0])
+            max_cluster_louvain.append(self.agents.analyse_communities_louvain()[1])
+            n_clusters_k_clique.append(self.agents.compute_spatial_k_clique()[0])
+            max_clusters_k_clique.append(self.agents.compute_spatial_k_clique()[1])
+            #mean_coop.append(self.agents.summarise_weights_gen()[0])
+            #var_coop.append(self.agents.summarise_weights_gen()[1])
+            self.agents.create_offsprings_simple(self.type_alg)
+        return reciprocity, clique_number, mean_coop, var_coop, n_clusters, max_cluster, n_clusters_louvain,max_cluster_louvain,n_clusters_k_clique,max_clusters_k_clique
     
     def plot_data_mult_gen(self):
-        reciprocity, clique_number, mean_coop, var_coop = self.mult_generations()
+        reciprocity, clique_number, mean_coop, var_coop, n_clusters, max_cluster, n_clusters_louvain,max_cluster_louvain, n_clusters_k_clique,max_cluster_k_clique = self.mult_generations()
         t = [i for i in range(1,self.n_gen+1)]
         plt.clf()
-        plt.x_lim(0,self.n_gen+1)
         plt.plot(t,reciprocity)
-        plt.y_lim(0,1)
         plt.title('reciprocity')
         plt.show()
         plt.plot(t,clique_number)
-        plt.y_lim(0,5)
         plt.title('clique number')
         plt.show()
-        plt.plot(t,mean_coop)
-        plt.y_lim(0,1)
-        plt.title('Mean cooperation ratio')
+        plt.plot(t,n_clusters)
+        plt.title('Number of communities - hierarchical')
         plt.show()
-        plt.plot(t,var_coop)
-        plt.y_lim(0,1)
-        plt.title('Variance of cooperation ratios')
+        plt.plot(t,max_cluster)
+        plt.title('Size of the largest community - hierarchical')
+        plt.show()
+        plt.plot(t,n_clusters_louvain)
+        plt.title('Number of communities - louvain')
+        plt.show()
+        plt.plot(t,max_cluster_louvain)
+        plt.title('Size of the largest community - louvain')
+        plt.show()
+        plt.plot(t,n_clusters_k_clique)
+        plt.title('Number of communities - k')
+        plt.show()
+        plt.plot(t,max_cluster_k_clique)
+        plt.title('Size of the largest community - k')
         plt.show()
         
     def mult_generation_anim(self):
@@ -742,11 +761,24 @@ class Simulation_PD:
             self.agents.create_offsprings(self.type_alg)
         return loc_all, loc_parents, mean_comm_coop, len_comm_coop,mean_comm_spatial,len_comm_spatial
         
-
+    def mult_generation_anim_simple(self):
+        loc_all=dict()
+        loc_c=dict()
+        loc_d=dict()
+        n_clusters=dict()
+        max_cluster=dict()
+        for n in range(self.n_gen):
+            self.one_generation_anim()
+            loc_all[n] = self.agents.get_locations_all()
+            loc_c[n] = self.agents.get_locations_C()
+            loc_d[n] = self.agents.get_locations_D()
+            n_clusters[n], max_cluster[n] = self.agents.analyse_clustering()
+            self.agents.create_offsprings_simple(self.type_alg)
+        return loc_all, loc_c, loc_d
 
 def main():
-    PD = Simulation_PD(15, 60, bernoulli_arms, discounted_thompson, 10)
-    locs = PD.plot_data_mult_gen()
+    PD = Simulation_PD(20, 60, bernoulli_arms, discounted_thompson, 15)
+    PD.plot_data_mult_gen()
 
 
 if __name__ == "__main__":

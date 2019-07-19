@@ -169,6 +169,16 @@ def detect_k_communities(network,treshold,k,cliques=None):
     G = transform_di_weight_simple(network,treshold)
     return [list(x) for x in k_clique_communities(G, k, cliques)]
 
+
+def detect_k_communities_undirected(network,treshold,k,cliques=None):
+    G = nx.Graph()
+    G.add_nodes_from(network)
+    for i in range(len(network)):
+        for j in range(i):
+            if network[i][j]['weight'] <= treshold:
+                G.add_edge(i,j)
+    return [list(x) for x in k_clique_communities(G, k, cliques)]
+
     
 def draw_circle_around_clique(clique,coords):
     dist=0

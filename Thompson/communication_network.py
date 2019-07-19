@@ -15,7 +15,7 @@ import community
 import copy
 import matplotlib.animation as animation
 from collections import Counter
-from scipy.cluster.hierarchy import dendrogram, linkage
+from scipy.cluster.hierarchy import dendrogram, linkage, fclusterdata
 
 
 from mab_algorithms import *
@@ -648,7 +648,7 @@ class NOC(nx.DiGraph):
             x,y = random.random(), random.random()
             self.node[n]['Player'] = ReactivePlayer((p,q),initial_C,n,neighbors,(x,y))            
     
-    def init_players_first_gen(self):
+    def init_players_first_gen_simple(self):
         """Initialise players for each node.
         A player is characterised by a triple (y,p,q), where y is the probability of initially playing C,
         p=P(C|C') and q=P(C|D')
@@ -656,12 +656,45 @@ class NOC(nx.DiGraph):
         for n in range(len(self)):
             neighbors = [i for i in self.node[n]['neighbors']]
             #print (neighbors)
-            r = np.random.uniform(0,1,3)
-            initial_C = r[0]
-            p = np.amax(r[1:]), np.amin(r[1:])
-            q = p
+            initial_C = p = q = 1
             x,y = random.random(), random.random()
             self.node[n]['Player'] = ReactivePlayer((p,q),initial_C,n,neighbors,(x,y))
+            
+    def init_players_first_gen_simple_sample(self,p_coop=0.2):
+        """Initialise players for each node.
+        A player is characterised by a triple (y,p,q), where y is the probability of initially playing C,
+        p=P(C|C') and q=P(C|D')
+        """
+        for n in range(len(self)):
+            neighbors = [i for i in self.node[n]['neighbors']]
+            r = random.random()
+            if p_coop>r:
+                initial_C = p = q = 1
+            else:
+                initial_C = p = q = 0
+            x,y = random.random(), random.random()
+            self.node[n]['Player'] = ReactivePlayer((p,q),initial_C,n,neighbors,(x,y))
+        
+    def init_players_first_gen_simple_clusters(self):
+        """Initialise players for each node.
+        A player is characterised by a triple (y,p,q), where y is the probability of initially playing C,
+        p=P(C|C') and q=P(C|D')
+        """
+        for n in range(len(self)):
+            neighbors = [i for i in self.node[n]['neighbors']]
+            #print (neighbors)
+            initial_C = p = q = 1
+            m = n%4
+            if m==0:
+                x,y = 0.1+np.random.uniform(-0.05,0.05), 0.1+np.random.uniform(-0.05,0.05)
+            elif m==1:
+                x,y = 0.9+np.random.uniform(-0.05,0.05), 0.1+np.random.uniform(-0.05,0.05)
+            elif m==2:
+                x,y = 0.9+np.random.uniform(-0.05,0.05), 0.9+np.random.uniform(-0.05,0.05)
+            else:
+                x,y = 0.1+np.random.uniform(-0.05,0.05), 0.9+np.random.uniform(-0.05,0.05)
+            self.node[n]['Player'] = ReactivePlayer((p,q),initial_C,n,neighbors,(x,y))
+    
         
     def add_e_coop(self):
         """Add edges with proportion of C strategies played as weights""" 
@@ -712,6 +745,7 @@ class NOC(nx.DiGraph):
         for i,parent in enumerate(parents):
             parent_data.append(self.node[parent]['Player'])
         return parent_data
+    
         
     def create_offsprings(self, alg = discounted_thompson) -> None:
         parent_data = self.get_parents_data(self.parents)
@@ -727,23 +761,35 @@ class NOC(nx.DiGraph):
             self.node[i]['Player'] = ReactivePlayer((p,q),initial_C,i,neighbors,(x,y))          
             
             
-    def create_offsprings_just_p(self, alg = discounted_thompson) -> None:
+    def create_offsprings_simple(self, alg = discounted_thompson) -> None:
         parent_data = self.get_parents_data(self.parents)
         self.__init__(self.n, self.n_arms, alg)
         self.init_graph()
         for i,parent in enumerate(parent_data):
             #print (i,parent)
             neighbors = [neighbor for neighbor in self[i]]
-            initial_C = bound_0_1(parent.initial_prob + np.random.normal(0,0.05))
-            p = bound_0_1(parent.prob[0] + np.random.normal(0,0.05))
-            q = p
-            x,y = (parent.loc[0] + np.random.normal(0,0.01)) % 1, (parent.loc[1] + np.random.normal(0,0.01)) % 1
+            initial_C = parent.initial_prob
+            p = parent.prob[0]
+            q = parent.prob[1]
+            x,y = (parent.loc[0] + np.random.normal(0,0.01)), (parent.loc[1] + np.random.normal(0,0.01))
             self.node[i]['Player'] = ReactivePlayer((p,q),initial_C,i,neighbors,(x,y)) 
             
             
     def get_locations_all(self):
         all_loc = [self.node[n]['Player'].loc for n in range(len(self))]
         return all_loc
+    
+    def get_locations_C(self):
+        loc = [self.node[n]['Player'].loc for n in range(len(self)) if self.node[n]['Player'].initial_prob==1]
+        return loc
+    
+    def get_locations_D(self):
+        loc = [self.node[n]['Player'].loc for n in range(len(self)) if self.node[n]['Player'].initial_prob==0]
+        return loc
+    
+    def get_locations_all_list(self):
+        all_loc = [list(self.node[n]['Player'].loc) for n in range(len(self))]
+        return all_loc       
         
     def get_locations_parents(self):
         parents_loc = [self.node[n]['Player'].loc for n in self.parents]
@@ -781,6 +827,8 @@ class NOC(nx.DiGraph):
             for i in neighbors:
                 coop_ratio = self.node[n]['Player'].history.histories[i].cooperations/len(self.node[n]['Player'].history.histories[i])
                 #print ('coop ratio',coop_ratio)
+                if self.node[n]['Player'].prob==(0,0) and coop_ratio!=0:
+                    print ('Cooperating defector',self.node[n]['Player'].prob,self.node[n]['Player'].initial_prob)
                 coops = np.append(coops,coop_ratio)
                 self.add_weighted_edges_from([(n,i,coop_ratio)])
             all_coop_ratios = np.append(all_coop_ratios,np.mean(coops))
@@ -806,7 +854,7 @@ class NOC(nx.DiGraph):
         plt.clf()
         plt.figure()
         plt.scatter(payoffs,coop_ratios,c='r',label='Player')
-        plt.scatter(payoffs,coop_coplays_ratios,c='b',label='Opponents')
+        plt.scatter(payoffs,coplays_ratios,c='b',label='Opponents')
         plt.plot(np.unique(payoffs), np.poly1d(np.polyfit(payoffs, coop_ratios, 1))(np.unique(payoffs)))
         plt.plot(np.unique(payoffs), np.poly1d(np.polyfit(payoffs, coplays_ratios, 1))(np.unique(payoffs)))
         plt.xlabel('Accumulated payoff')
@@ -865,13 +913,35 @@ class NOC(nx.DiGraph):
     
     def compute_spatial_clustering(self):
         """Perform structured Ward hierarchical agglomerative clustering at the end of a generation"""
-        clustering = linkage(self.get_locations_all(), 'ward',metric= toroidal_distance)
+        X = self.get_locations_all_list() 
+        #print (X)
+        clustering = fclusterdata(X, t=1)
+        #print (clustering)
         return clustering
+    
+    def analyse_clustering(self):
+        X = np.arange(len(self))
+        clustering = self.compute_spatial_clustering()
+        unique_elements, counts_elements = np.unique(clustering, return_counts=True)
+        clusters = []
+        for i in unique_elements:
+            clusters.append(X[np.where(clustering==i)])
+        return np.size(unique_elements), np.max(counts_elements)
     
     def compute_coop_graph_k_clique_communities(self):
         self.get_coop_data()
         communities = detect_k_communities(self,0.7,3)
         return communities
+    
+    def compute_spatial_k_clique(self):
+        G = self.create_graph_distances()
+        communities = detect_k_communities_undirected(G,0.1,3)
+        n_communities = len(communities)
+        if n_communities!=0:
+            max_community = len(max(communities,key=len))
+        else:
+            max_community = 0
+        return n_communities, max_community
     
     def create_graph_distances(self):
         """Creates a simple weighted graph where the weight is the distance between a pair of points"""
@@ -881,12 +951,16 @@ class NOC(nx.DiGraph):
     
     def communities_distance_louvain(self):
         G = self.create_graph_distances()
-        print (G.edges(data=True))
+        #print (G.edges(data=True))
         comm_list=[]
         communities_dict = community.best_partition(G,weight='weight')
         for comm in set(communities_dict.values()):
             comm_list.append([key for key in communities_dict.keys() if communities_dict[key]==comm])
         return comm_list
+    
+    def analyse_communities_louvain(self):
+        comm_list = self.communities_distance_louvain()
+        return len(comm_list),len(max(comm_list,key=len))
     
     def analyse_communities(self, spatial=False):
         if spatial:
@@ -913,13 +987,13 @@ class NOC(nx.DiGraph):
         
     def clique_number_gen(self):
         self.get_coop_data()
-        G = transform_di_weight_simple(self,0.7)
+        G = transform_di_weight_simple(self,0.9)
         return nx.graph_clique_number(G)
     
     def summarise_weights_gen(self):
         """Calculate the average propensity to share information"""
         self.get_coop_data()
-        all_weights = np.array([self.edges.data('weight', default=1)[i][2] for i in range(len(self.agents.edges()))])
+        all_weights = np.array([self.edges.data('weight', default=1)[i][2] for i in range(len(self.edges()))])
         #print (all_weights)
         return np.mean(all_weights), np.var(all_weights)
         
