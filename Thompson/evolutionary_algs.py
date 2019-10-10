@@ -8,6 +8,7 @@ import numpy as np
 import random
 
 np.random.seed(None)
+random.seed()
 
 class roulette_wheel(object):
     
@@ -26,8 +27,7 @@ class roulette_wheel(object):
         fitness = self.pop_fitness.values()
         total_fit = sum(fitness)
         relative_fitness = [f/total_fit for f in fitness]
-        probabilities = [sum(relative_fitness[:i+1]) 
-                         for i in range(len(relative_fitness))]
+        probabilities = [sum(relative_fitness[:i+1]) for i in range(len(relative_fitness))]
         return probabilities
 
 

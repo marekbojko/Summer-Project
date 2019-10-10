@@ -16,6 +16,9 @@ import copy
 import matplotlib.animation as animation
 from collections import Counter
 from scipy.cluster.hierarchy import dendrogram, linkage, fclusterdata
+from sklearn.cluster import KMeans
+from sklearn.metrics import silhouette_samples, silhouette_score
+from scipy.spatial.distance import pdist, squareform
 
 
 from mab_algorithms import *
@@ -25,6 +28,7 @@ from evolutionary_algs import *
 from graph_measures import *
 
 np.random.seed(None)
+random.seed()
 
 
 # K is number of arms of the multi-armed bandit
@@ -41,6 +45,30 @@ def bound_0_1(r):
         return 0
     else:
         return r
+    
+    
+def sgn(x):
+    y = np.where(x>0,1,x)
+    z = np.where(y<0,-1,y)
+    return z
+
+
+def dot_product_coordinates(p,q):
+    d = np.zeros(2)
+    for i in range(np.size(q)):
+        d = d + q[i]*p[i]
+    return d
+
+
+def discrete_step_number(x):
+    return 1 if x>=0 else -1
+
+def discrete_step(ar):
+    return np.where(ar>=0,1,-1)
+
+def dist_arr(pos,ar):
+    dist = lambda p1,p2: math.sqrt((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)
+    return np.array([dist(pos,ar[i]) for i in range(np.size(ar,0))])
 
 
 def add_weights_complete_graph(graph, comm_prop = 0.5, const = True):
@@ -103,6 +131,27 @@ def accum_payoff(network) :
     for i in range(len(network)):
         payoff[i] = np.sum(network.node[i]['rewards'])
     return payoff
+
+
+def dot_product_coordinates(pos,coeffs):
+    z = np.array([pos[i]*coeffs[i] for i in range(np.size(coeffs))])
+    return np.sum(z,axis=0)
+
+def transform_clusters(clusters):
+    d = dict()
+    for e in np.unique(clusters):
+        d[e] = [i for i,j in enumerate(clusters) if j==e]
+    return d
+
+def discrete_step_number(x):
+    return 1 if x>=0 else -1
+
+def discrete_step(ar):
+    return np.where(ar>=0,1,-1)
+
+def dist_arr(pos,ar):
+    dist = lambda p1,p2: math.sqrt((p1[0]-p2[0])**2+(p1[1]-p2[1])**2)
+    return np.array([dist(pos,ar[i]) for i in range(np.size(ar,0))])
     
 
 def cooling_schedule(t):
@@ -143,6 +192,12 @@ def sigmoid(d):
         b[key] = sigmoid_func(value)
     return b
     
+
+def transform_clusters(clusters):
+    d = dict()
+    for e in np.unique(clusters):
+        d[e] = [i for i,j in enumerate(clusters) if j==e]
+    return d
     
 def initialise_network_arms(n_players, arms,alg=discounted_thompson,gamma = 1,comm_init=False,field=[]):
     """
@@ -602,12 +657,15 @@ class NOC(nx.DiGraph):
     _label="Network of interactions"
     
     
-    def __init__(self, n, n_arms,alg=discounted_thompson):
+    def __init__(self, n, n_arms,alg=discounted_thompson, alpha = 2, beta = 0.5, gamma = 2):
         super().__init__()
         self.n = n
         self.n_arms = n_arms
         self.alg_type = alg
-        
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+        #self.coop_matrix = np.fill_diagonal(coop_matrix,1)
         
     def init_graph(self):
         self.add_nodes_own(self.n)
@@ -634,101 +692,151 @@ class NOC(nx.DiGraph):
     def add_nodes_own(self,n):
         self.add_nodes_from([i for i in range(n)])
 
-    def init_players_first_gen(self):
+    def init_players_first_gen(self, p_coop = 1, clustering = False, evolving_strategies = False):
         """Initialise players for each node.
         A player is characterised by a triple (y,p,q), where y is the probability of initially playing C,
         p=P(C|C') and q=P(C|D')
         """
+        self.coop_matrix = np.zeros((self.n,self.n))
+        self.p = []
+        self.pos = []
         for n in range(len(self)):
             neighbors = [i for i in self.node[n]['neighbors']]
             #print (neighbors)
-            r = np.random.uniform(0,1,3)
-            initial_C = r[0]
-            p,q = np.amax(r[1:]), np.amin(r[1:])
-            x,y = random.random(), random.random()
-            self.node[n]['Player'] = ReactivePlayer((p,q),initial_C,n,neighbors,(x,y))            
-    
-    def init_players_first_gen_simple(self):
-        """Initialise players for each node.
-        A player is characterised by a triple (y,p,q), where y is the probability of initially playing C,
-        p=P(C|C') and q=P(C|D')
-        """
-        for n in range(len(self)):
-            neighbors = [i for i in self.node[n]['neighbors']]
-            #print (neighbors)
-            initial_C = p = q = 1
-            x,y = random.random(), random.random()
-            self.node[n]['Player'] = ReactivePlayer((p,q),initial_C,n,neighbors,(x,y))
-            
-    def init_players_first_gen_simple_sample(self,p_coop=0.2):
-        """Initialise players for each node.
-        A player is characterised by a triple (y,p,q), where y is the probability of initially playing C,
-        p=P(C|C') and q=P(C|D')
-        """
-        for n in range(len(self)):
-            neighbors = [i for i in self.node[n]['neighbors']]
-            r = random.random()
-            if p_coop>r:
-                initial_C = p = q = 1
+            if evolving_strategies:
+                r = random.random()
+                if p_coop>r:
+                    initial_C = 1
+                    p = q = random.random()
+                else:
+                    initial_C = 0
+                    p = q = 0
             else:
-                initial_C = p = q = 0
-            x,y = random.random(), random.random()
+                r = random.random()
+                if p_coop>r:
+                    initial_C = p = q = 1
+                else:
+                    initial_C = p = q = 0
+            if clustering:
+                m = n%4
+                if m==0:
+                    x,y = 0.1+np.random.uniform(-0.05,0.05), 0.1+np.random.uniform(-0.05,0.05)
+                elif m==1:
+                    x,y = 0.9+np.random.uniform(-0.05,0.05), 0.1+np.random.uniform(-0.05,0.05)
+                elif m==2:
+                    x,y = 0.9+np.random.uniform(-0.05,0.05), 0.9+np.random.uniform(-0.05,0.05)
+                else:
+                    x,y = 0.1+np.random.uniform(-0.05,0.05), 0.9+np.random.uniform(-0.05,0.05)
+            else:
+                x,y = random.random(), random.random()
             self.node[n]['Player'] = ReactivePlayer((p,q),initial_C,n,neighbors,(x,y))
+            self.p.append(p)
+            self.pos.append(np.array([x,y]))
+        print('p',self.p)
+        print ('pos',self.pos)
         
-    def init_players_first_gen_simple_clusters(self):
+        
+    def init_players_first_gen_matrix(self, p_coop = 1, clustering = False, evolving_strategies = False, const_initial_strategy = False, initial_strategy = 0.8):
         """Initialise players for each node.
         A player is characterised by a triple (y,p,q), where y is the probability of initially playing C,
         p=P(C|C') and q=P(C|D')
         """
-        for n in range(len(self)):
-            neighbors = [i for i in self.node[n]['neighbors']]
-            #print (neighbors)
-            initial_C = p = q = 1
-            m = n%4
-            if m==0:
-                x,y = 0.1+np.random.uniform(-0.05,0.05), 0.1+np.random.uniform(-0.05,0.05)
-            elif m==1:
-                x,y = 0.9+np.random.uniform(-0.05,0.05), 0.1+np.random.uniform(-0.05,0.05)
-            elif m==2:
-                x,y = 0.9+np.random.uniform(-0.05,0.05), 0.9+np.random.uniform(-0.05,0.05)
+        self.coop_matrix = np.zeros((self.n,self.n))
+        print (const_initial_strategy)
+        if const_initial_strategy:
+            self.p = np.full(self.n, initial_strategy)
+            print ('p',self.p)
+        else:
+            r = np.random.uniform(0,1,self.n)
+            if evolving_strategies:
+                self.p = np.where(r<p_coop,r,0)
             else:
-                x,y = 0.1+np.random.uniform(-0.05,0.05), 0.9+np.random.uniform(-0.05,0.05)
-            self.node[n]['Player'] = ReactivePlayer((p,q),initial_C,n,neighbors,(x,y))
-    
+                self.p = np.where(r<p_coop,1,0)
+        if clustering:
+            p = q = []
+            for n in range(self.n):
+                m = n%4
+                if m==0:
+                    x,y = 0.1+np.random.uniform(-0.05,0.05), 0.1+np.random.uniform(-0.05,0.05)
+                elif m==1:
+                    x,y = 0.9+np.random.uniform(-0.05,0.05), 0.1+np.random.uniform(-0.05,0.05)
+                elif m==2:
+                    x,y = 0.9+np.random.uniform(-0.05,0.05), 0.9+np.random.uniform(-0.05,0.05)
+                else:
+                    x,y = 0.1+np.random.uniform(-0.05,0.05), 0.9+np.random.uniform(-0.05,0.05)
+                p.append(x)
+                q.append(y)
+            self.pos = np.array(list(zip(p,q)))
+        else:
+            x,y = np.random.uniform(0,1,self.n), np.random.uniform(0,1,self.n)
+            self.pos = np.array(list(zip(x,y)))
+        #print('p',self.p)
+        #print ('pos',self.pos)
+            
         
     def add_e_coop(self):
         """Add edges with proportion of C strategies played as weights""" 
         self.add_weighted_edges_from((u,v,toroidal_distance(network.node[u]['Player'].loc,network.node[v]['Player'].loc)) for u in range(len(self)) for v in range(len(self)) if u!=v) 
         
-        
     def play_game_memory_one(self,ret = False):
         """
         Performs a 2-player Prisoner's Dilemma and shares information accordingly
         """
-        G = nx.DiGraph()
+        #G = nx.DiGraph()
         for i in range(len(self)):
             for j in range(i):
                 si,sj = simultaneous_play(self.node[i]['Player'], self.node[j]['Player'])
                 if si==Action.C:
-                    self.node[i]['information shared with'] = np.append(self.node[i]['information shared with'],j)
+                    #self.node[i]['information shared with'] = np.append(self.node[i]['information shared with'],j)
                     # i shares with j:
-                    s = self.node[i]['alloc_seq'][-1]
+                    s = int(self.node[i]['alloc_seq'][-1])
                     if self.node[i]['rewards'][-1]==1:
-                        self.node[j]['S'][s] += 1
+                        self.node[j]['S'][s] = self.node[j]['S'][s] + 1
                     else:
-                        self.node[j]['F'][s] += 1
-                    G.add_edge(i,j)
+                        self.node[j]['F'][s] = self.node[j]['F'][s] + 1
+                    #G.add_edge(i,j)
                 if sj==Action.C:
-                    self.node[j]['information shared with'] = np.append(self.node[j]['information shared with'],i)
+                    #self.node[j]['information shared with'] = np.append(self.node[j]['information shared with'],i)
                     # i shares with j:
-                    s = self.node[j]['alloc_seq'][-1]
+                    s = int(self.node[j]['alloc_seq'][-1])
                     if self.node[j]['rewards'][-1]==1:
-                        self.node[i]['S'][s] += 1
+                        self.node[i]['S'][s] = self.node[i]['S'][s] + 1
                     else:
-                        self.node[i]['F'][s] += 1
-                    G.add_edge(i,j)
-        if ret:
-            return G
+                        self.node[i]['F'][s] = self.node[i]['F'][s] + 1
+        #            G.add_edge(i,j)
+        #if ret:
+        #    return G
+        
+    def create_game_matrix(self):
+        """Create a matrix of strategies"""
+        dist = lambda p1, p2: sqrt(((p1-p2)**2).sum())
+        dm = np.exp(squareform(pdist(self.pos))*(math.log(self.beta)/math.sqrt(2)))
+        self.dm = dm
+        #print ('dm',self.dm)
+        gm = (dm.T * self.p).T
+        np.fill_diagonal(gm, 0)
+        self.game_matrix = gm
+        #print ('game matrix',self.game_matrix)
+        
+    def play_PD_matrix(self,t_max: int=100):
+        rand_matrix = np.random.rand(self.n,self.n)
+        #print('random matrix',rand_matrix)
+        sharing_matrix = rand_matrix < self.game_matrix
+        #print('sharing matrix',sharing_matrix)
+        players_share = np.where(sharing_matrix==True)
+        #print (players_share)
+        #print('coop matrix',self.coop_matrix)
+        self.coop_matrix = self.coop_matrix + np.where(sharing_matrix==True,1,0)/t_max
+        i_s = players_share[0]
+        j_s = players_share[1]
+        for m in range(len(i_s)):
+            i,j = i_s[m], j_s[m]
+            s = int(self.node[i]['alloc_seq'][-1])
+            if self.node[i]['rewards'][-1]==1:
+                self.node[j]['S'][s] = self.node[j]['S'][s] + 1
+            else:
+                self.node[j]['F'][s] = self.node[j]['F'][s] + 1
+
 
     def select_arm(self,arms, alg=discounted_thompson, gamma = 1, field = [],first_iter=False):
         arm_selection(self, arms, alg, gamma, field, first_iter)
@@ -742,58 +850,123 @@ class NOC(nx.DiGraph):
         
     def get_parents_data(self,parents: list=[]):
         parent_data=[]
-        for i,parent in enumerate(parents):
+        for parent in parents:
             parent_data.append(self.node[parent]['Player'])
         return parent_data
     
+    def create_offsprings(self, alg = discounted_thompson, evolving_strategies=False, noise=0.01) -> None:
+        parent_data = self.get_parents_data(self.parents)
+        self.__init__(self.n, self.n_arms, alg)
+        self.init_graph()
+        old_pos = self.pos
+        self.p = []
+        self.pos = []
+        for i,parent in enumerate(parent_data):
+            neighbors = [neighbor for neighbor in self[i]]
+            if evolving_strategies:
+                initial_C = bound_0_1(parent.initial_prob + np.random.normal(0,0.01))
+                p = q = bound_0_1(parent.prob[0] + np.random.normal(0,0.005))
+            else:
+                initial_C = parent.initial_prob
+                p = q = parent.prob[0]
+            
+            weights_neighbours = np.array([self.dm[i][n] for n in neighbors])
+            coop_ratios = np.array([self.coop_matrix[i][n] for n in neighbors])
+            #print ('coop_ratios',coop_ratios)
+            signs = sgn(coop_ratios - np.mean(coop_ratios))
+            #print ('signs',signs)
+            weights = weights_neighbours*signs
+            #print ('weights',weights)
+            parent_move = np.asarray([[(p2-p1)/np.linalg.norm(p2-p1) for p2 in old_pos] for p1 in old_pos])
+            print (parent_move)
+            #print ('vectors',parent_move)
+            d_parent = np.dot(parent_move,weights)
+            #print ('d',d)
+            
+            x,y = (parent.loc[0] + d_parent[0] + np.random.normal(0,noise)), (parent.loc[1] + d_parent[1] + np.random.normal(0,noise))
+            self.node[i]['Player'] = ReactivePlayer((p,q),initial_C,i,neighbors,(x,y))
+            self.p.append(p)
+            self.pos.append(np.array([x,y]))
+        self.create_game_matrix()
+        self.coop_matrix = np.zeros((self.n,self.n))
+        #print ('p',self.p)
+        #print ('pos',self.pos)
         
-    def create_offsprings(self, alg = discounted_thompson) -> None:
-        parent_data = self.get_parents_data(self.parents)
-        self.__init__(self.n, self.n_arms, alg)
+        
+    def create_offsprings_matrix(self, evolving_strategies=False, noise=0.01, v_max = 1, eta = 0.01, normalise = True, limit_interactions = False, interaction_radius = float('inf')) -> None:
+        self.__init__(self.n, self.n_arms, self.alg_type)
         self.init_graph()
-        for i,parent in enumerate(parent_data):
-            #print (i,parent)
-            neighbors = [neighbor for neighbor in self[i]]
-            initial_C = bound_0_1(parent.initial_prob + np.random.normal(0,0.05))
-            p = bound_0_1(parent.prob[0] + np.random.normal(0,0.05))
-            q = min(p,bound_0_1(parent.prob[1] + np.random.normal(0,0.05)))
-            x,y = (parent.loc[0] + np.random.normal(0,0.01)) % 1, (parent.loc[1] + np.random.normal(0,0.01)) % 1
-            self.node[i]['Player'] = ReactivePlayer((p,q),initial_C,i,neighbors,(x,y))          
+        old_pos = self.pos
+        old_p = self.p
+        self.p = []
+        self.pos = []
+        parent_move = np.asarray([[(p2-p1)/np.linalg.norm(p2-p1) for p2 in old_pos] for p1 in old_pos])
+        for i in self.parents:
+            neighbors = np.asarray([neighbor for neighbor in self[i]])
+            if evolving_strategies:
+                p = bound_0_1(old_p[i] + np.random.normal(0,0.005))
             
+            """
+            weights_neighbours = np.array([self.dm[i][n] for n in neighbors])
+            coop_ratios = np.array([self.coop_matrix[n][i] for n in neighbors])
+            #print ('coop_ratios',coop_ratios)
+            div = coop_ratios - np.mean(coop_ratios)
+            #print ('signs',signs)
+            weights = weights_neighbours*div
+            #print ('weights',weights)
+            pm = np.array([parent_move[i][n] for n in neighbors])
+            #print ('vectors',pm)
+            d_parent = dot_product_coordinates(pm,weights)
+            d_parent = d_parent/(50*np.linalg.norm(d_parent))
+            #print ('d',d_parent)
+            """
+            weights_neighbours = self.dm[i,neighbors]
+            div = old_p[neighbors] - old_p[i]
+            #div = self.coop_matrix[neighbors,i] - self.coop_matrix[i,neighbors]
+            sgn = discrete_step(div)
+            #print (sgn)
+            func_form = (1+abs(div))**self.alpha
+            #print (old_pos)
+            decay_dist = 1/(1+dist_arr(old_pos[i],old_pos[neighbors]))**self.gamma
+            weights = sgn*func_form
+            w_ij = weights*decay_dist
+            #print ('w_ij',w_ij)
+            a_ij = w_ij/np.sum(np.absolute(w_ij))
+            a_ij = a_ij*v_max
+            #print ('v_max',v_max)
+            #print ('a_ij',a_ij)
+            pm = parent_move[i,neighbors]
+            #print ('pm',pm)
+            #print (dot_product_coordinates(pm,a_ij))
+            d_parent = dot_product_coordinates(pm,a_ij) + np.random.uniform(-eta,eta,2)
+            #print ('d_p',d_p)
+            #if normalise:
+            #    d_parent = d_parent/(np.linalg.norm(d_parent))
             
-    def create_offsprings_simple(self, alg = discounted_thompson) -> None:
-        parent_data = self.get_parents_data(self.parents)
-        self.__init__(self.n, self.n_arms, alg)
-        self.init_graph()
-        for i,parent in enumerate(parent_data):
-            #print (i,parent)
-            neighbors = [neighbor for neighbor in self[i]]
-            initial_C = parent.initial_prob
-            p = parent.prob[0]
-            q = parent.prob[1]
-            x,y = (parent.loc[0] + np.random.normal(0,0.01)), (parent.loc[1] + np.random.normal(0,0.01))
-            self.node[i]['Player'] = ReactivePlayer((p,q),initial_C,i,neighbors,(x,y)) 
-            
+            x,y = (old_pos[i][0] + d_parent[0] + np.random.normal(0,noise)), (old_pos[i][1] + d_parent[1] + np.random.normal(0,noise))
+            self.p.append(p)
+            self.pos.append(np.array([x,y]))
+        self.pos = np.asarray(self.pos)
+        self.p = np.asarray(self.p)
+        self.create_game_matrix()
+        self.coop_matrix = np.zeros((self.n,self.n))
+        #print ('p',self.p)
+        #print ('pos',self.pos)
             
     def get_locations_all(self):
-        all_loc = [self.node[n]['Player'].loc for n in range(len(self))]
-        return all_loc
+        return self.pos
     
     def get_locations_C(self):
-        loc = [self.node[n]['Player'].loc for n in range(len(self)) if self.node[n]['Player'].initial_prob==1]
+        loc = self.pos[np.where(self.p>0.2)]
         return loc
     
     def get_locations_D(self):
-        loc = [self.node[n]['Player'].loc for n in range(len(self)) if self.node[n]['Player'].initial_prob==0]
+        loc = self.pos[np.where(self.p<=0.2)]
         return loc
     
     def get_locations_all_list(self):
-        all_loc = [list(self.node[n]['Player'].loc) for n in range(len(self))]
+        all_loc = [list(self.pos[n]) for n in range(len(self))]
         return all_loc       
-        
-    def get_locations_parents(self):
-        parents_loc = [self.node[n]['Player'].loc for n in self.parents]
-        return parents_loc
 
     def plot_loc_all(self):
         plt.clf()
@@ -830,9 +1003,22 @@ class NOC(nx.DiGraph):
                 if self.node[n]['Player'].prob==(0,0) and coop_ratio!=0:
                     print ('Cooperating defector',self.node[n]['Player'].prob,self.node[n]['Player'].initial_prob)
                 coops = np.append(coops,coop_ratio)
-                self.add_weighted_edges_from([(n,i,coop_ratio)])
+                #self.add_weighted_edges_from([(n,i,coop_ratio)])
             all_coop_ratios = np.append(all_coop_ratios,np.mean(coops))
         return all_coop_ratios, all_payoffs
+    
+    def coop_weights(self):
+        """Add coop ratios to corresponding edges as weights"""
+        for n in range(len(self)):
+            neighbors = [neighbor for neighbor in self[n]]
+            for i in neighbors:
+                """
+                coop_ratio = self.node[n]['Player'].history.histories[i].cooperations/len(self.node[n]['Player'].history.histories[i])
+                self.add_weighted_edges_from([(n,i,coop_ratio)])
+                """
+                coop_ratio = self.coop_matrix[n,i]
+                self.add_weighted_edges_from([(n,i,coop_ratio)])
+        #print (self.edges(data=True))
     
     def get_coop_coplays(self):
         coplays_ratios = np.empty(0)
@@ -911,6 +1097,12 @@ class NOC(nx.DiGraph):
         highest_payoff_dist = self.node[numpy.argmax(all_payoffs)]['Player'].history.distribution
         return lowest_payoff_dist, highest_payoff_dist
     
+    def get_mean_payoff(self):
+        all_payoffs = np.array([self.node[n]['accumulated payoff'] for n in range(len(self))])
+        X = self.get_locations_all_list()
+        max_payoff_pos = np.argmax(all_payoffs)
+        return np.mean(all_payoffs),np.amax(all_payoffs),X[max_payoff_pos],np.var(all_payoffs)
+    
     def compute_spatial_clustering(self):
         """Perform structured Ward hierarchical agglomerative clustering at the end of a generation"""
         X = self.get_locations_all_list() 
@@ -929,7 +1121,6 @@ class NOC(nx.DiGraph):
         return np.size(unique_elements), np.max(counts_elements)
     
     def compute_coop_graph_k_clique_communities(self):
-        self.get_coop_data()
         communities = detect_k_communities(self,0.7,3)
         return communities
     
@@ -946,7 +1137,7 @@ class NOC(nx.DiGraph):
     def create_graph_distances(self):
         """Creates a simple weighted graph where the weight is the distance between a pair of points"""
         G = nx.complete_graph(len(self))
-        G.add_weighted_edges_from((u,v,toroidal_distance(self.node[u]['Player'].loc,self.node[v]['Player'].loc)) for u,v in G.edges())
+        G.add_weighted_edges_from((u,v,toroidal_distance(self.pos[u],self.pos[v])) for u,v in G.edges())
         return G
     
     def communities_distance_louvain(self):
@@ -982,24 +1173,54 @@ class NOC(nx.DiGraph):
         return mean_community_payoff,len(communities)
     
     def reciprocity_gen(self):
-        self.get_coop_data()
         return reciprocity_weighted_graph(self)
         
     def clique_number_gen(self):
-        self.get_coop_data()
-        G = transform_di_weight_simple(self,0.9)
+        G = transform_di_weight_simple(self,0.3)
         return nx.graph_clique_number(G)
     
     def summarise_weights_gen(self):
         """Calculate the average propensity to share information"""
-        self.get_coop_data()
-        all_weights = np.array([self.edges.data('weight', default=1)[i][2] for i in range(len(self.edges()))])
+        #print (self.edges.data('weight', default=1))
+        all_weights = np.array([list(self.edges.data('weight', default=1))[i][2] for i in range(len(self.edges()))])
         #print (all_weights)
         return np.mean(all_weights), np.var(all_weights)
         
-        
-        
-        
+    def silloutte_k_means(self):
+        """Perform the silloutte k-means clustering analysis"""
+        range_n_clusters = range(2,11)
+        #X = self.get_locations_all_list()
+        X = self.pos
+        silhouettes = np.empty(0)
+        clusterers=[]
+        for n_clusters in range_n_clusters:
+            clusterer = KMeans(n_clusters=n_clusters, random_state=10)
+            clusterers.append(clusterer)
+            cluster_labels = clusterer.fit_predict(X)
+            # The silhouette_score gives the average value for all the samples.
+            # This gives a perspective into the density and separation of the formed
+            # clusters
+            silhouette_avg = silhouette_score(X, cluster_labels)
+            silhouettes = np.append(silhouettes, silhouette_avg)
+        k_best = np.argmax(silhouettes)
+        clusterer = clusterers[k_best]
+        kmeans = clusterer.fit(X)
+        labels = kmeans.labels_
+        clusters = transform_clusters(labels)
+        info_sharing_clusters = []
+        for key,value in clusters.items():
+            if len(value)==0:
+                assert ValueError ('An empty cluster found')
+            elif len(value)==1:
+                info_sharing_clusters.append(self.p[value[0]])
+            else:
+                info_sharing_clusters.append(np.mean(np.array([self.coop_matrix[i][j] for i in value for j in value if i!=j])))
+        unique_elements, counts_elements = np.unique(labels, return_counts=True)
+        return np.size(unique_elements), np.max(counts_elements), counts_elements, info_sharing_clusters
+                
+    def all_mean_coop(self):
+        coop_ratios = np.array([np.mean([self.coop_matrix[i][n] for n in range(self.n) if n!=i]) for i in range(self.n)])
+        return coop_ratios
     
         
         

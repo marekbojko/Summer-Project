@@ -1,0 +1,288 @@
+[NbConvertApp] Converting notebook Untitled1.ipynb to notebook
+[NbConvertApp] Executing notebook with kernel: python3
+[NbConvertApp] ERROR | Error while converting 'Untitled1.ipynb'
+Traceback (most recent call last):
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/nbconvertapp.py", line 408, in export_single_notebook
+    output, resources = self.exporter.from_filename(notebook_filename, resources=resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 179, in from_filename
+    return self.from_file(f, resources=resources, **kw)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 197, in from_file
+    return self.from_notebook_node(nbformat.read(file_stream, as_version=4), resources=resources, **kw)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/notebook.py", line 32, in from_notebook_node
+    nb_copy, resources = super(NotebookExporter, self).from_notebook_node(nb, resources, **kw)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 139, in from_notebook_node
+    nb_copy, resources = self._preprocess(nb_copy, resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 316, in _preprocess
+    nbc, resc = preprocessor(nbc, resc)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/base.py", line 47, in __call__
+    return self.preprocess(nb, resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/execute.py", line 381, in preprocess
+    nb, resources = super(ExecutePreprocessor, self).preprocess(nb, resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/base.py", line 69, in preprocess
+    nb.cells[index], resources = self.preprocess_cell(cell, resources, index)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/execute.py", line 424, in preprocess_cell
+    raise CellExecutionError.from_cell_and_msg(cell, out)
+nbconvert.preprocessors.execute.CellExecutionError: An error occurred while executing the following cell:
+------------------
+locs,loc_c,loc_d = PD1.plot_data_mult_gen(True, 0.01)
+------------------
+
+[0;31m---------------------------------------------------------------------------[0m
+[0;31mValueError[0m                                Traceback (most recent call last)
+[0;32m<ipython-input-6-10bda2787f78>[0m in [0;36m<module>[0;34m[0m
+[0;32m----> 1[0;31m [0mlocs[0m[0;34m,[0m[0mloc_c[0m[0;34m,[0m[0mloc_d[0m [0;34m=[0m [0mPD1[0m[0;34m.[0m[0mplot_data_mult_gen[0m[0;34m([0m[0;32mTrue[0m[0;34m,[0m [0;36m0.01[0m[0;34m)[0m[0;34m[0m[0m
+[0m
+[0;32m~/project/Summer-Project/Thompson/evolving_comm_network.py[0m in [0;36mplot_data_mult_gen[0;34m(self, evolving_strategies, noise)[0m
+[1;32m    768[0m [0;34m[0m[0m
+[1;32m    769[0m     [0;32mdef[0m [0mplot_data_mult_gen[0m[0;34m([0m[0mself[0m[0;34m,[0m[0mevolving_strategies[0m [0;34m=[0m [0;32mFalse[0m[0;34m,[0m [0mnoise[0m[0;34m=[0m[0;36m0.01[0m[0;34m)[0m[0;34m:[0m[0;34m[0m[0m
+[0;32m--> 770[0;31m         [0mloc_all[0m[0;34m,[0m [0mloc_c[0m[0;34m,[0m [0mloc_d[0m[0;34m,[0m [0mreciprocity[0m[0;34m,[0m [0mclique_number[0m[0;34m,[0m [0mmean_coop[0m[0;34m,[0m [0mvar_coop[0m[0;34m,[0m [0mn_clusters[0m[0;34m,[0m [0mmax_cluster[0m[0;34m,[0m [0mn_clusters_k_clique[0m[0;34m,[0m[0mmax_cluster_k_clique[0m[0;34m,[0m[0mn_clusters_k_means[0m[0;34m,[0m[0mmax_clusters_k_means[0m[0;34m,[0m [0mmean_payoffs[0m[0;34m,[0m [0mmax_payoffs[0m[0;34m,[0m [0mmax_payoffs_pos[0m[0;34m,[0m[0mpay_off_var[0m[0;34m,[0m [0mmean_coop[0m[0;34m,[0m [0mvar_coop[0m [0;34m=[0m [0mself[0m[0;34m.[0m[0mmult_generations[0m[0;34m([0m[0mevolving_strategies[0m[0;34m,[0m [0mnoise[0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m    771[0m         [0mt[0m [0;34m=[0m [0;34m[[0m[0mi[0m [0;32mfor[0m [0mi[0m [0;32min[0m [0mrange[0m[0;34m([0m[0;36m1[0m[0;34m,[0m[0mself[0m[0;34m.[0m[0mn_gen[0m[0;34m+[0m[0;36m1[0m[0;34m)[0m[0;34m][0m[0;34m[0m[0m
+[1;32m    772[0m         [0mfig[0m [0;34m=[0m [0mplt[0m[0;34m.[0m[0mfigure[0m[0;34m([0m[0mfigsize[0m[0;34m=[0m[0;34m([0m[0;36m10[0m[0;34m,[0m[0;36m12[0m[0;34m)[0m[0;34m)[0m[0;34m[0m[0m
+
+[0;32m~/project/Summer-Project/Thompson/evolving_comm_network.py[0m in [0;36mmult_generations[0;34m(self, evolving_strategies, noise)[0m
+[1;32m    748[0m             [0mreciprocity[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mself[0m[0;34m.[0m[0magents[0m[0;34m.[0m[0mreciprocity_gen[0m[0;34m([0m[0;34m)[0m[0;34m)[0m[0;34m[0m[0m
+[1;32m    749[0m             [0mclique_number[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mself[0m[0;34m.[0m[0magents[0m[0;34m.[0m[0mclique_number_gen[0m[0;34m([0m[0;34m)[0m[0;34m)[0m[0;34m[0m[0m
+[0;32m--> 750[0;31m             [0mn_clusters[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mself[0m[0;34m.[0m[0magents[0m[0;34m.[0m[0manalyse_clustering[0m[0;34m([0m[0;34m)[0m[0;34m[[0m[0;36m0[0m[0;34m][0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m    751[0m             [0mmax_cluster[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mself[0m[0;34m.[0m[0magents[0m[0;34m.[0m[0manalyse_clustering[0m[0;34m([0m[0;34m)[0m[0;34m[[0m[0;36m1[0m[0;34m][0m[0;34m)[0m[0;34m[0m[0m
+[1;32m    752[0m             [0;31m#n_clusters_louvain.append(self.agents.analyse_communities_louvain()[0])[0m[0;34m[0m[0;34m[0m[0m
+
+[0;32m~/project/Summer-Project/Thompson/communication_network.py[0m in [0;36manalyse_clustering[0;34m(self)[0m
+[1;32m   1037[0m     [0;32mdef[0m [0manalyse_clustering[0m[0;34m([0m[0mself[0m[0;34m)[0m[0;34m:[0m[0;34m[0m[0m
+[1;32m   1038[0m         [0mX[0m [0;34m=[0m [0mnp[0m[0;34m.[0m[0marange[0m[0;34m([0m[0mlen[0m[0;34m([0m[0mself[0m[0;34m)[0m[0;34m)[0m[0;34m[0m[0m
+[0;32m-> 1039[0;31m         [0mclustering[0m [0;34m=[0m [0mself[0m[0;34m.[0m[0mcompute_spatial_clustering[0m[0;34m([0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m   1040[0m         [0munique_elements[0m[0;34m,[0m [0mcounts_elements[0m [0;34m=[0m [0mnp[0m[0;34m.[0m[0munique[0m[0;34m([0m[0mclustering[0m[0;34m,[0m [0mreturn_counts[0m[0;34m=[0m[0;32mTrue[0m[0;34m)[0m[0;34m[0m[0m
+[1;32m   1041[0m         [0mclusters[0m [0;34m=[0m [0;34m[[0m[0;34m][0m[0;34m[0m[0m
+
+[0;32m~/project/Summer-Project/Thompson/communication_network.py[0m in [0;36mcompute_spatial_clustering[0;34m(self)[0m
+[1;32m   1031[0m         [0mX[0m [0;34m=[0m [0mself[0m[0;34m.[0m[0mget_locations_all_list[0m[0;34m([0m[0;34m)[0m[0;34m[0m[0m
+[1;32m   1032[0m         [0;31m#print (X)[0m[0;34m[0m[0;34m[0m[0m
+[0;32m-> 1033[0;31m         [0mclustering[0m [0;34m=[0m [0mfclusterdata[0m[0;34m([0m[0mX[0m[0;34m,[0m [0mt[0m[0;34m=[0m[0;36m1[0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m   1034[0m         [0;31m#print (clustering)[0m[0;34m[0m[0;34m[0m[0m
+[1;32m   1035[0m         [0;32mreturn[0m [0mclustering[0m[0;34m[0m[0m
+
+[0;32m~/.local/lib/python3.6/site-packages/scipy/cluster/hierarchy.py[0m in [0;36mfclusterdata[0;34m(X, t, criterion, metric, depth, method, R)[0m
+[1;32m   2692[0m [0;34m[0m[0m
+[1;32m   2693[0m     [0mY[0m [0;34m=[0m [0mdistance[0m[0;34m.[0m[0mpdist[0m[0;34m([0m[0mX[0m[0;34m,[0m [0mmetric[0m[0;34m=[0m[0mmetric[0m[0;34m)[0m[0;34m[0m[0m
+[0;32m-> 2694[0;31m     [0mZ[0m [0;34m=[0m [0mlinkage[0m[0;34m([0m[0mY[0m[0;34m,[0m [0mmethod[0m[0;34m=[0m[0mmethod[0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m   2695[0m     [0;32mif[0m [0mR[0m [0;32mis[0m [0;32mNone[0m[0;34m:[0m[0;34m[0m[0m
+[1;32m   2696[0m         [0mR[0m [0;34m=[0m [0minconsistent[0m[0;34m([0m[0mZ[0m[0;34m,[0m [0md[0m[0;34m=[0m[0mdepth[0m[0;34m)[0m[0;34m[0m[0m
+
+[0;32m~/.local/lib/python3.6/site-packages/scipy/cluster/hierarchy.py[0m in [0;36mlinkage[0;34m(y, method, metric, optimal_ordering)[0m
+[1;32m   1059[0m [0;34m[0m[0m
+[1;32m   1060[0m     [0;32mif[0m [0;32mnot[0m [0mnp[0m[0;34m.[0m[0mall[0m[0;34m([0m[0mnp[0m[0;34m.[0m[0misfinite[0m[0;34m([0m[0my[0m[0;34m)[0m[0;34m)[0m[0;34m:[0m[0;34m[0m[0m
+[0;32m-> 1061[0;31m         raise ValueError("The condensed distance matrix must contain only "
+[0m[1;32m   1062[0m                          "finite values.")
+[1;32m   1063[0m [0;34m[0m[0m
+
+[0;31mValueError[0m: The condensed distance matrix must contain only finite values.
+ValueError: The condensed distance matrix must contain only finite values.
+
+[NbConvertApp] Converting notebook Untitled1.ipynb to notebook
+[NbConvertApp] Executing notebook with kernel: python3
+[NbConvertApp] ERROR | Error while converting 'Untitled1.ipynb'
+Traceback (most recent call last):
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/nbconvertapp.py", line 408, in export_single_notebook
+    output, resources = self.exporter.from_filename(notebook_filename, resources=resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 179, in from_filename
+    return self.from_file(f, resources=resources, **kw)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 197, in from_file
+    return self.from_notebook_node(nbformat.read(file_stream, as_version=4), resources=resources, **kw)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/notebook.py", line 32, in from_notebook_node
+    nb_copy, resources = super(NotebookExporter, self).from_notebook_node(nb, resources, **kw)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 139, in from_notebook_node
+    nb_copy, resources = self._preprocess(nb_copy, resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 316, in _preprocess
+    nbc, resc = preprocessor(nbc, resc)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/base.py", line 47, in __call__
+    return self.preprocess(nb, resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/execute.py", line 381, in preprocess
+    nb, resources = super(ExecutePreprocessor, self).preprocess(nb, resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/base.py", line 69, in preprocess
+    nb.cells[index], resources = self.preprocess_cell(cell, resources, index)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/execute.py", line 424, in preprocess_cell
+    raise CellExecutionError.from_cell_and_msg(cell, out)
+nbconvert.preprocessors.execute.CellExecutionError: An error occurred while executing the following cell:
+------------------
+locs,loc_c,loc_d = PD1.plot_data_mult_gen(True, 0.01)
+------------------
+
+[0;31m---------------------------------------------------------------------------[0m
+[0;31mValueError[0m                                Traceback (most recent call last)
+[0;32m<ipython-input-6-10bda2787f78>[0m in [0;36m<module>[0;34m[0m
+[0;32m----> 1[0;31m [0mlocs[0m[0;34m,[0m[0mloc_c[0m[0;34m,[0m[0mloc_d[0m [0;34m=[0m [0mPD1[0m[0;34m.[0m[0mplot_data_mult_gen[0m[0;34m([0m[0;32mTrue[0m[0;34m,[0m [0;36m0.01[0m[0;34m)[0m[0;34m[0m[0m
+[0m
+[0;32m~/project/Summer-Project/Thompson/evolving_comm_network.py[0m in [0;36mplot_data_mult_gen[0;34m(self, evolving_strategies, noise)[0m
+[1;32m    768[0m [0;34m[0m[0m
+[1;32m    769[0m     [0;32mdef[0m [0mplot_data_mult_gen[0m[0;34m([0m[0mself[0m[0;34m,[0m[0mevolving_strategies[0m [0;34m=[0m [0;32mFalse[0m[0;34m,[0m [0mnoise[0m[0;34m=[0m[0;36m0.01[0m[0;34m)[0m[0;34m:[0m[0;34m[0m[0m
+[0;32m--> 770[0;31m         [0mloc_all[0m[0;34m,[0m [0mloc_c[0m[0;34m,[0m [0mloc_d[0m[0;34m,[0m [0mreciprocity[0m[0;34m,[0m [0mclique_number[0m[0;34m,[0m [0mmean_coop[0m[0;34m,[0m [0mvar_coop[0m[0;34m,[0m [0mn_clusters[0m[0;34m,[0m [0mmax_cluster[0m[0;34m,[0m [0mn_clusters_k_clique[0m[0;34m,[0m[0mmax_cluster_k_clique[0m[0;34m,[0m[0mn_clusters_k_means[0m[0;34m,[0m[0mmax_clusters_k_means[0m[0;34m,[0m [0mmean_payoffs[0m[0;34m,[0m [0mmax_payoffs[0m[0;34m,[0m [0mmax_payoffs_pos[0m[0;34m,[0m[0mpay_off_var[0m[0;34m,[0m [0mmean_coop[0m[0;34m,[0m [0mvar_coop[0m [0;34m=[0m [0mself[0m[0;34m.[0m[0mmult_generations[0m[0;34m([0m[0mevolving_strategies[0m[0;34m,[0m [0mnoise[0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m    771[0m         [0mt[0m [0;34m=[0m [0;34m[[0m[0mi[0m [0;32mfor[0m [0mi[0m [0;32min[0m [0mrange[0m[0;34m([0m[0;36m1[0m[0;34m,[0m[0mself[0m[0;34m.[0m[0mn_gen[0m[0;34m+[0m[0;36m1[0m[0;34m)[0m[0;34m][0m[0;34m[0m[0m
+[1;32m    772[0m         [0mfig[0m [0;34m=[0m [0mplt[0m[0;34m.[0m[0mfigure[0m[0;34m([0m[0mfigsize[0m[0;34m=[0m[0;34m([0m[0;36m10[0m[0;34m,[0m[0;36m12[0m[0;34m)[0m[0;34m)[0m[0;34m[0m[0m
+
+[0;32m~/project/Summer-Project/Thompson/evolving_comm_network.py[0m in [0;36mmult_generations[0;34m(self, evolving_strategies, noise)[0m
+[1;32m    754[0m             [0mn_clusters_k_clique[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mself[0m[0;34m.[0m[0magents[0m[0;34m.[0m[0mcompute_spatial_k_clique[0m[0;34m([0m[0;34m)[0m[0;34m[[0m[0;36m0[0m[0;34m][0m[0;34m)[0m[0;34m[0m[0m
+[1;32m    755[0m             [0mmax_clusters_k_clique[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mself[0m[0;34m.[0m[0magents[0m[0;34m.[0m[0mcompute_spatial_k_clique[0m[0;34m([0m[0;34m)[0m[0;34m[[0m[0;36m1[0m[0;34m][0m[0;34m)[0m[0;34m[0m[0m
+[0;32m--> 756[0;31m             [0mn_clusters_k_means[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mself[0m[0;34m.[0m[0magents[0m[0;34m.[0m[0msilloutte_k_means[0m[0;34m([0m[0;34m)[0m[0;34m[[0m[0;36m0[0m[0;34m][0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m    757[0m             [0mmax_clusters_k_means[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mself[0m[0;34m.[0m[0magents[0m[0;34m.[0m[0msilloutte_k_means[0m[0;34m([0m[0;34m)[0m[0;34m[[0m[0;36m1[0m[0;34m][0m[0;34m)[0m[0;34m[0m[0m
+[1;32m    758[0m             [0mmean_payoffs[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0mself[0m[0;34m.[0m[0magents[0m[0;34m.[0m[0mget_mean_payoff[0m[0;34m([0m[0;34m)[0m[0;34m[[0m[0;36m0[0m[0;34m][0m[0;34m)[0m[0;34m[0m[0m
+
+[0;32m~/project/Summer-Project/Thompson/communication_network.py[0m in [0;36msilloutte_k_means[0;34m(self)[0m
+[1;32m   1123[0m             [0;31m# This gives a perspective into the density and separation of the formed[0m[0;34m[0m[0;34m[0m[0m
+[1;32m   1124[0m             [0;31m# clusters[0m[0;34m[0m[0;34m[0m[0m
+[0;32m-> 1125[0;31m             [0msilhouette_avg[0m [0;34m=[0m [0msilhouette_score[0m[0;34m([0m[0mX[0m[0;34m,[0m [0mcluster_labels[0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m   1126[0m             [0msilhouettes[0m [0;34m=[0m [0mnp[0m[0;34m.[0m[0mappend[0m[0;34m([0m[0msilhouettes[0m[0;34m,[0m [0msilhouette_avg[0m[0;34m)[0m[0;34m[0m[0m
+[1;32m   1127[0m         [0mk_best[0m [0;34m=[0m [0mnp[0m[0;34m.[0m[0margmax[0m[0;34m([0m[0msilhouettes[0m[0;34m)[0m[0;34m[0m[0m
+
+[0;32m~/.local/lib/python3.6/site-packages/sklearn/metrics/cluster/unsupervised.py[0m in [0;36msilhouette_score[0;34m(X, labels, metric, sample_size, random_state, **kwds)[0m
+[1;32m    115[0m         [0;32melse[0m[0;34m:[0m[0;34m[0m[0m
+[1;32m    116[0m             [0mX[0m[0;34m,[0m [0mlabels[0m [0;34m=[0m [0mX[0m[0;34m[[0m[0mindices[0m[0;34m][0m[0;34m,[0m [0mlabels[0m[0;34m[[0m[0mindices[0m[0;34m][0m[0;34m[0m[0m
+[0;32m--> 117[0;31m     [0;32mreturn[0m [0mnp[0m[0;34m.[0m[0mmean[0m[0;34m([0m[0msilhouette_samples[0m[0;34m([0m[0mX[0m[0;34m,[0m [0mlabels[0m[0;34m,[0m [0mmetric[0m[0;34m=[0m[0mmetric[0m[0;34m,[0m [0;34m**[0m[0mkwds[0m[0;34m)[0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m    118[0m [0;34m[0m[0m
+[1;32m    119[0m [0;34m[0m[0m
+
+[0;32m~/.local/lib/python3.6/site-packages/sklearn/metrics/cluster/unsupervised.py[0m in [0;36msilhouette_samples[0;34m(X, labels, metric, **kwds)[0m
+[1;32m    215[0m     [0mn_samples[0m [0;34m=[0m [0mlen[0m[0;34m([0m[0mlabels[0m[0;34m)[0m[0;34m[0m[0m
+[1;32m    216[0m     [0mlabel_freqs[0m [0;34m=[0m [0mnp[0m[0;34m.[0m[0mbincount[0m[0;34m([0m[0mlabels[0m[0;34m)[0m[0;34m[0m[0m
+[0;32m--> 217[0;31m     [0mcheck_number_of_labels[0m[0;34m([0m[0mlen[0m[0;34m([0m[0mle[0m[0;34m.[0m[0mclasses_[0m[0;34m)[0m[0;34m,[0m [0mn_samples[0m[0;34m)[0m[0;34m[0m[0m
+[0m[1;32m    218[0m [0;34m[0m[0m
+[1;32m    219[0m     [0mkwds[0m[0;34m[[0m[0;34m'metric'[0m[0;34m][0m [0;34m=[0m [0mmetric[0m[0;34m[0m[0m
+
+[0;32m~/.local/lib/python3.6/site-packages/sklearn/metrics/cluster/unsupervised.py[0m in [0;36mcheck_number_of_labels[0;34m(n_labels, n_samples)[0m
+[1;32m     33[0m     [0;32mif[0m [0;32mnot[0m [0;36m1[0m [0;34m<[0m [0mn_labels[0m [0;34m<[0m [0mn_samples[0m[0;34m:[0m[0;34m[0m[0m
+[1;32m     34[0m         raise ValueError("Number of labels is %d. Valid values are 2 "
+[0;32m---> 35[0;31m                          "to n_samples - 1 (inclusive)" % n_labels)
+[0m[1;32m     36[0m [0;34m[0m[0m
+[1;32m     37[0m [0;34m[0m[0m
+
+[0;31mValueError[0m: Number of labels is 10. Valid values are 2 to n_samples - 1 (inclusive)
+ValueError: Number of labels is 10. Valid values are 2 to n_samples - 1 (inclusive)
+
+This application is used to convert notebook files (*.ipynb) to various other
+formats.
+
+WARNING: THE COMMANDLINE INTERFACE MAY CHANGE IN FUTURE RELEASES.
+
+Options
+-------
+
+Arguments that take values are actually convenience aliases to full
+Configurables, whose aliases are listed on the help line. For more information
+on full configurables, see '--help-all'.
+
+--debug
+    set log level to logging.DEBUG (maximize logging output)
+--generate-config
+    generate default config file
+-y
+    Answer yes to any questions instead of prompting.
+--execute
+    Execute the notebook prior to export.
+--allow-errors
+    Continue notebook execution even if one of the cells throws an error and include the error message in the cell output (the default behaviour is to abort conversion). This flag is only relevant if '--execute' was specified, too.
+--stdin
+    read a single notebook file from stdin. Write the resulting notebook with default basename 'notebook.*'
+--stdout
+    Write notebook output to stdout instead of files.
+--inplace
+    Run nbconvert in place, overwriting the existing notebook (only 
+    relevant when converting to notebook format)
+--clear-output
+    Clear output of current file and save in place, 
+    overwriting the existing notebook.
+--no-prompt
+    Exclude input and output prompts from converted document.
+--no-input
+    Exclude input cells and output prompts from converted document. 
+    This mode is ideal for generating code-free reports.
+--log-level=<Enum> (Application.log_level)
+    Default: 30
+    Choices: (0, 10, 20, 30, 40, 50, 'DEBUG', 'INFO', 'WARN', 'ERROR', 'CRITICAL')
+    Set the log level by value or name.
+--config=<Unicode> (JupyterApp.config_file)
+    Default: ''
+    Full path of a config file.
+--to=<Unicode> (NbConvertApp.export_format)
+    Default: 'html'
+    The export format to be used, either one of the built-in formats
+    ['asciidoc', 'custom', 'html', 'latex', 'markdown', 'notebook', 'pdf',
+    'python', 'rst', 'script', 'slides'] or a dotted object name that represents
+    the import path for an `Exporter` class
+--template=<Unicode> (TemplateExporter.template_file)
+    Default: ''
+    Name of the template file to use
+--writer=<DottedObjectName> (NbConvertApp.writer_class)
+    Default: 'FilesWriter'
+    Writer class used to write the  results of the conversion
+--post=<DottedOrNone> (NbConvertApp.postprocessor_class)
+    Default: ''
+    PostProcessor class used to write the results of the conversion
+--output=<Unicode> (NbConvertApp.output_base)
+    Default: ''
+    overwrite base name use for output files. can only be used when converting
+    one notebook at a time.
+--output-dir=<Unicode> (FilesWriter.build_directory)
+    Default: ''
+    Directory to write output(s) to. Defaults to output to the directory of each
+    notebook. To recover previous default behaviour (outputting to the current
+    working directory) use . as the flag value.
+--reveal-prefix=<Unicode> (SlidesExporter.reveal_url_prefix)
+    Default: ''
+    The URL prefix for reveal.js (version 3.x). This defaults to the reveal CDN,
+    but can be any url pointing to a copy  of reveal.js.
+    For speaker notes to work, this must be a relative path to a local  copy of
+    reveal.js: e.g., "reveal.js".
+    If a relative path is given, it must be a subdirectory of the current
+    directory (from which the server is run).
+    See the usage documentation
+    (https://nbconvert.readthedocs.io/en/latest/usage.html#reveal-js-html-
+    slideshow) for more details.
+--nbformat=<Enum> (NotebookExporter.nbformat_version)
+    Default: 4
+    Choices: [1, 2, 3, 4]
+    The nbformat version to write. Use this to downgrade notebooks.
+
+To see all available configurables, use `--help-all`
+
+Examples
+--------
+
+    The simplest way to use nbconvert is
+    
+    > jupyter nbconvert mynotebook.ipynb
+    
+    which will convert mynotebook.ipynb to the default format (probably HTML).
+    
+    You can specify the export format with `--to`.
+    Options include ['asciidoc', 'custom', 'html', 'latex', 'markdown', 'notebook', 'pdf', 'python', 'rst', 'script', 'slides'].
+    
+    > jupyter nbconvert --to latex mynotebook.ipynb
+    
+    Both HTML and LaTeX support multiple output templates. LaTeX includes
+    'base', 'article' and 'report'.  HTML includes 'basic' and 'full'. You
+    can specify the flavor of the format used.
+    
+    > jupyter nbconvert --to html --template basic mynotebook.ipynb
+    
+    You can also pipe the output to stdout, rather than a file
+    
+    > jupyter nbconvert mynotebook.ipynb --stdout
+    
+    PDF is generated via latex
+    
+    > jupyter nbconvert mynotebook.ipynb --to pdf
+    
+    You can get (and serve) a Reveal.js-powered slideshow
+    
+    > jupyter nbconvert myslides.ipynb --to slides --post serve
+    
+    Multiple notebooks can be given at the command line in a couple of 
+    different ways:
+    
+    > jupyter nbconvert notebook*.ipynb
+    > jupyter nbconvert notebook1.ipynb notebook2.ipynb
+    
+    or you can specify the notebooks list in a config file, containing::
+    
+        c.NbConvertApp.notebooks = ["my_notebook.ipynb"]
+    
+    > jupyter nbconvert --config mycfg.py
+

@@ -1,0 +1,37 @@
+[NbConvertApp] Converting notebook run_50_ind_various_params_v_3_gaussian.ipynb to notebook
+[NbConvertApp] Executing notebook with kernel: python3
+[NbConvertApp] WARNING | Timeout waiting for IOPub output
+[NbConvertApp] ERROR | Error while converting 'run_50_ind_various_params_v_3_gaussian.ipynb'
+Traceback (most recent call last):
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/nbconvertapp.py", line 408, in export_single_notebook
+    output, resources = self.exporter.from_filename(notebook_filename, resources=resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 179, in from_filename
+    return self.from_file(f, resources=resources, **kw)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 197, in from_file
+    return self.from_notebook_node(nbformat.read(file_stream, as_version=4), resources=resources, **kw)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/notebook.py", line 32, in from_notebook_node
+    nb_copy, resources = super(NotebookExporter, self).from_notebook_node(nb, resources, **kw)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 139, in from_notebook_node
+    nb_copy, resources = self._preprocess(nb_copy, resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/exporters/exporter.py", line 316, in _preprocess
+    nbc, resc = preprocessor(nbc, resc)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/base.py", line 47, in __call__
+    return self.preprocess(nb, resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/execute.py", line 381, in preprocess
+    nb, resources = super(ExecutePreprocessor, self).preprocess(nb, resources)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/base.py", line 69, in preprocess
+    nb.cells[index], resources = self.preprocess_cell(cell, resources, index)
+  File "/home/pgrad2/2265960b/.local/lib/python3.6/site-packages/nbconvert/preprocessors/execute.py", line 424, in preprocess_cell
+    raise CellExecutionError.from_cell_and_msg(cell, out)
+nbconvert.preprocessors.execute.CellExecutionError: An error occurred while executing the following cell:
+------------------
+PD2 = Simulation_PD(n_agents = 50, n_bandits = 10, type_bandits = truncated_gaussian_arms, type_alg = discounted_thompson_general, n_gen = 2000, clustering=False, evolving_strategies = True, initial_coop=1, alpha = 2, gamma = 1/2, beta = 0.2, const_initial_strategy = True, initial_strategy = 0.8
+------------------
+
+[0;36m  File [0;32m"<ipython-input-10-a34144b56417>"[0;36m, line [0;32m1[0m
+[0;31m    PD2 = Simulation_PD(n_agents = 50, n_bandits = 10, type_bandits = truncated_gaussian_arms, type_alg = discounted_thompson_general, n_gen = 2000, clustering=False, evolving_strategies = True, initial_coop=1, alpha = 2, gamma = 1/2, beta = 0.2, const_initial_strategy = True, initial_strategy = 0.8[0m
+[0m                                                                                                                                                                                                                                                                                                            ^[0m
+[0;31mSyntaxError[0m[0;31m:[0m unexpected EOF while parsing
+
+SyntaxError: unexpected EOF while parsing (<ipython-input-10-a34144b56417>, line 1)
+

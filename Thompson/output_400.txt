@@ -1,0 +1,3 @@
+[NbConvertApp] Converting notebook ind_400_rep_100.ipynb to notebook
+[NbConvertApp] Executing notebook with kernel: python3
+[IPKernelApp] WARNING | Parent appears to have exited, shutting down.

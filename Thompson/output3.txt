@@ -1,0 +1,4 @@
+[NbConvertApp] Converting notebook 50_ind_various_params_v_2.ipynb to notebook
+[NbConvertApp] Executing notebook with kernel: python3
+[NbConvertApp] WARNING | Timeout waiting for IOPub output
+[NbConvertApp] Writing 1219069 bytes to 50_ind_various_params_v_2.ipynb

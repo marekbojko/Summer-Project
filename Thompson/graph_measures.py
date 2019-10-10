@@ -67,6 +67,16 @@ def transform_di_weight_simple(network,treshold):
             if network[i][j]['weight'] > treshold and network[j][i]['weight'] > treshold:
                 G.add_edge(i,j)
     return G
+
+def transform_weight_simple(network,treshold):
+    G = nx.Graph()
+    G.add_nodes_from(network)
+    #print (network.edges(data=True))
+    for i in range(len(network)):
+        for j in range(i):
+            if network[i][j]['weight'] > treshold:
+                G.add_edge(i,j)
+    return G
     
 def transform_di_simple(network):
     G = nx.Graph()

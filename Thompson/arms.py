@@ -11,6 +11,7 @@ from scipy.special import erf
 import random
 
 np.random.seed(None)
+random.seed()
 
 oo = float('+inf') #+infinity
 
@@ -184,7 +185,7 @@ class truncated_gaussian_arms(object):
         self.field_exp = [arm.mu for arm in self.field]
 
     def add_noise(self):
-        self.field = [bernoulli_arm(arm.expectation+np.random.normal(0,0.05)) for arm in self.field]
+        self.field = [bernoulli_arm(bound_r(arm.expectation+np.random.normal(0,0.05))) for arm in self.field]
 
         
 #A = truncated_gaussian_arms(10)
@@ -210,4 +211,13 @@ class bernoulli_arms(object):
         self.field_exp = [arm.expectation for arm in self.field]
 
     def add_noise(self):
-        self.field = [bernoulli_arm(arm.expectation+np.random.normal(0,0.05)) for arm in self.field]
+        self.field = [bernoulli_arm(bound_r(arm.expectation+np.random.normal(0,0.05))) for arm in self.field]
+
+        
+def bound_r(r):
+    if r>1:
+        return 1
+    elif r<0:
+        return 0
+    else:
+        return r

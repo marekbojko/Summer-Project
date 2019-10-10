@@ -14,11 +14,12 @@ import community
 import time
 import copy
 import datetime
+from progress.bar import Bar
+import time, sys
+from IPython.display import clear_output
+
 
 from matplotlib import animation
-
-plt.rcParams['animation.ffmpeg_path'] = 'C:\\FFmpeg\\bin\\ffmpeg.exe'
-FFwriter = animation.FFMpegWriter()
 
 plt.style.use('seaborn-white')
 np.random.seed(None)
@@ -31,15 +32,58 @@ from graph_measures import *
 global K
 K = 50
     
+      
+class progress_bar:
+    
+    def __init__(self,n_max):
+        self.n_max = n_max
+    
+    def update_progress(self,progress):
+        bar_length = self.n_max
+        if isinstance(progress, int):
+            progress = float(progress)
+        if not isinstance(progress, float):
+            progress = 0
+        if progress < 0:
+            progress = 0
+        if progress >= 1:
+            progress = 1
+        return progress
             
+    def display(self, progress):
+        progress = self.update_progress(progress)
+        block = int(round(self.n_max * progress))
+        clear_output(wait = True)
+        text = "Progress: [{0}] {1:.1f}%".format( "#" * block + "-" * (self.n_max - block), progress * 100)
+        print(text)
+        
+
+def plot_density(ptraj, tlist, ustep=100, ax=None):
+    dist = np.zeros((ustep,ptraj.shape[1]+1))
+    bin_min, bin_max = ptraj.min(), ptraj.max()
+    bins = np.linspace(bin_min, bin_max, ustep)
+        
+    for t, traits in enumerate(ptraj.transpose()):
+        dist[:,t], _ = np.histogram(traits, bins=bins)
+
+    if ax is None:
+        fig,ax = plt.subplots(1,1,figsize=(20,5))
+    dmask = dist
+    dmask[dmask==0] = np.nan
+    mp = ax.imshow(dmask,aspect='auto', 
+                   extent=[tlist.min(),tlist.max(),bin_min, bin_max],
+                   cmap='viridis',
+                   origin='bottom')
+    ax.set(xlabel='Time',ylabel='Trait')
+    cax = make_axes_locatable(ax).append_axes("right", size="1%", pad=0.1)
+    ax.get_figure().colorbar(label='density', cax=cax, ax=ax, mappable=mp)
+        
+        
 ##############################################################################
 """
 Create simulations for various group sizes
 """
-##############################################################################
-
-    
-
+############################################################################
 
 def sim_group_size(network,arms, n_time=1000, alg=discounted_thompson, gamma=1):
     oracle = np.argmax(np.array(arms.field_exp))
@@ -175,13 +219,13 @@ pm = True
 
 
 def p_message(message) :
-  global pm
-  if pm == True :
-    print(message)
+    global pm
+    if pm == True :
+        print(message)
     
     
 def sec_to_string(seconds) :
-  return str(datetime.timedelta(seconds=seconds))
+    return str(datetime.timedelta(seconds=seconds))
     
     
 # run a full simulation for with specified (networkx) graph constructor
@@ -617,7 +661,7 @@ class Multi_Sim:
 class Simulation_PD:
     """Class for simulations of ietrated PD games"""
     
-    def __init__(self, n_agents, n_bandits, type_bandits, type_alg, n_gen):
+    def __init__(self, n_agents, n_bandits, type_bandits, type_alg, n_gen, clustering=False, evolving_strategies = False, initial_coop=0.2, alpha = 2, gamma = 2, beta = 0.5, const_initial_strategy = False, initial_strategy = 0.8):
         """
         Bandits have several options, give one of those options as type_bandits:
             1. bernoulli_arms
@@ -631,18 +675,19 @@ class Simulation_PD:
         self.n_bandits = n_bandits
         self.type_bandits = type_bandits
         self.type_alg = type_alg
-        self.agents = self.__generate_agents()
+        self.agents = self.__generate_agents(clustering, evolving_strategies, initial_coop, alpha, beta, gamma, const_initial_strategy, initial_strategy)
         self.bandits = self.__generate_bandits()
         self.oracle = self.__find_oracle()
-        self.t_max = 100
+        self.t_max = 50
+        self.t_gen = self.t_max * 3
         self.n_gen = n_gen
         
         
-    def __generate_agents(self):
-        A = NOC(self.n_agents, self.n_bandits, self.type_alg)
+    def __generate_agents(self, clustering=False, evolving_strategies = False, initial_coop=0.2, alpha = 2, gamma = 2, beta = 0.5, const_initial_strategy = False, initial_strategy = 0.8):
+        A = NOC(self.n_agents, self.n_bandits, self.type_alg, alpha, beta, gamma)
         A.init_graph()
-        A.init_players_first_gen_simple_sample()
-        #print (A.nodes(data=True))
+        A.init_players_first_gen_matrix(initial_coop,clustering,evolving_strategies, const_initial_strategy, initial_strategy)
+        A.create_game_matrix()
         return A
         
         
@@ -657,129 +702,161 @@ class Simulation_PD:
     def one_episode(self, gamma):
         """Play and instance of the game - agents choose an arm and share information"""        
         self.agents.select_arm(self.bandits, self.type_alg, gamma)
-        self.agents.play_game_memory_one()
+        self.agents.play_PD_matrix(self.t_gen)
         self.agents.update_accum_payoff()
         
+    def one_generation_pre_game(self):
+        #lmb = 10
+        gamma = 1
+        t_max = self.t_max
+        accum_payoffs = dict()
+        players = dict()
+        n_environments = 2
+        for env in range(n_environments):
+            #print ('Pregame',env)
+            for i in range(t_max):
+                self.one_episode(gamma)
+            for i in range(self.n_agents):
+                accum_payoffs[i] = self.agents.node[i]['accumulated payoff']
+            self.bandits = self.__generate_bandits()
+            self.agents.__init__(self.n_agents, self.n_bandits, self.type_alg)
+            self.agents.init_graph()
+            for i in range(self.n_agents):
+                self.agents.node[i]['accumulated payoff'] = accum_payoffs[i]
+        
     def one_generation(self):
-        lmb = 10
-        gamma = 1-1/lmb
+        #lmb = 10
+        gamma = 1
         t_max = self.t_max
         #data = dict()
             
         for t in range(1,t_max+1):
-            if t % lmb == 0:
-                self.bandits.add_noise()
-            self.one_episode(gamma)
-        self.agents.perform_selection()
-        self.agents.plot_loc_all()
-        #self.agents.plot_loc_parents()
-        self.agents.plot_coop_payoff()
-        #self.agents.plot_game_data()
-        #self.agents.barplot_hist_distribution()
-        #self.agents.analyse_communities()
-
-    def one_generation_anim(self):
-        lmb = 10
-        gamma = 1-1/lmb
-        t_max = self.t_max
-        #data = dict()
-            
-        for t in range(1,t_max+1):
-            if t % lmb == 0:
-                self.bandits.add_noise()
+            #if t % lmb == 0:
+                #self.bandits.add_noise()
             self.one_episode(gamma)
         self.agents.perform_selection()
         
-    def mult_generations(self):
+    def mult_generations(self, evolving_strategies=False, noise=0.01, v_max = 1, eta = 0.01, normalise = True, limit_interactions = False, interaction_radius = float('inf')):
+        start = int(round(time.time()))
+        loc_all=dict()
+        loc_c=dict()
+        loc_d=dict()
         reciprocity=[]
         clique_number=[]
         mean_coop=[]
         var_coop=[]
         n_clusters=[]
         max_cluster=[]
-        n_clusters_louvain=[]
-        max_cluster_louvain=[]
+        #n_clusters_louvain=[]
+        #max_cluster_louvain=[]
         n_clusters_k_clique=[]
         max_clusters_k_clique=[]
+        n_clusters_k_means=[]
+        max_clusters_k_means=[]
+        size_clusters=[]
+        mean_payoffs=[]
+        max_payoffs=[]
+        max_payoffs_pos=[]
+        pay_off_var=[]
+        coop_ratios=[]
+        info_sharing_clusters = []
+        p_val = []
+        bar = progress_bar(self.n_gen)
         for n in range(self.n_gen):
+            self.one_generation_pre_game()
             self.one_generation()
-            reciprocity.append(self.agents.reciprocity_gen())
-            clique_number.append(self.agents.clique_number_gen())
-            n_clusters.append(self.agents.analyse_clustering()[0])
-            max_cluster.append(self.agents.analyse_clustering()[1])
-            n_clusters_louvain.append(self.agents.analyse_communities_louvain()[0])
-            max_cluster_louvain.append(self.agents.analyse_communities_louvain()[1])
-            n_clusters_k_clique.append(self.agents.compute_spatial_k_clique()[0])
-            max_clusters_k_clique.append(self.agents.compute_spatial_k_clique()[1])
-            #mean_coop.append(self.agents.summarise_weights_gen()[0])
-            #var_coop.append(self.agents.summarise_weights_gen()[1])
-            self.agents.create_offsprings_simple(self.type_alg)
-        return reciprocity, clique_number, mean_coop, var_coop, n_clusters, max_cluster, n_clusters_louvain,max_cluster_louvain,n_clusters_k_clique,max_clusters_k_clique
-    
-    def plot_data_mult_gen(self):
-        reciprocity, clique_number, mean_coop, var_coop, n_clusters, max_cluster, n_clusters_louvain,max_cluster_louvain, n_clusters_k_clique,max_cluster_k_clique = self.mult_generations()
-        t = [i for i in range(1,self.n_gen+1)]
-        plt.clf()
-        plt.plot(t,reciprocity)
-        plt.title('reciprocity')
-        plt.show()
-        plt.plot(t,clique_number)
-        plt.title('clique number')
-        plt.show()
-        plt.plot(t,n_clusters)
-        plt.title('Number of communities - hierarchical')
-        plt.show()
-        plt.plot(t,max_cluster)
-        plt.title('Size of the largest community - hierarchical')
-        plt.show()
-        plt.plot(t,n_clusters_louvain)
-        plt.title('Number of communities - louvain')
-        plt.show()
-        plt.plot(t,max_cluster_louvain)
-        plt.title('Size of the largest community - louvain')
-        plt.show()
-        plt.plot(t,n_clusters_k_clique)
-        plt.title('Number of communities - k')
-        plt.show()
-        plt.plot(t,max_cluster_k_clique)
-        plt.title('Size of the largest community - k')
-        plt.show()
-        
-    def mult_generation_anim(self):
-        loc_all=dict()
-        loc_parents=dict()
-        mean_comm_coop = dict()
-        len_comm_coop = dict()
-        mean_comm_spatial = dict()
-        len_comm_spatial = dict()
-        for n in range(self.n_gen):
-            self.one_generation_anim()
-            loc_all[n] = self.agents.get_locations_all()
-            loc_parents[n] = self.agents.get_locations_parents()
-            mean_comm_coop[t], len_comm_coop[t] = self.agents.analyse_communities(False)
-            mean_comm_spatial[t], len_comm_spatial[t] = self.agents.analyse_communities(True)
-            self.agents.create_offsprings(self.type_alg)
-        return loc_all, loc_parents, mean_comm_coop, len_comm_coop,mean_comm_spatial,len_comm_spatial
-        
-    def mult_generation_anim_simple(self):
-        loc_all=dict()
-        loc_c=dict()
-        loc_d=dict()
-        n_clusters=dict()
-        max_cluster=dict()
-        for n in range(self.n_gen):
-            self.one_generation_anim()
+            self.agents.coop_weights()
             loc_all[n] = self.agents.get_locations_all()
             loc_c[n] = self.agents.get_locations_C()
             loc_d[n] = self.agents.get_locations_D()
-            n_clusters[n], max_cluster[n] = self.agents.analyse_clustering()
-            self.agents.create_offsprings_simple(self.type_alg)
-        return loc_all, loc_c, loc_d
-
-def main():
-    PD = Simulation_PD(20, 60, bernoulli_arms, discounted_thompson, 15)
-    PD.plot_data_mult_gen()
-
-
-if __name__ == "__main__":
-    main()
+            reciprocity.append(self.agents.reciprocity_gen())
+            clique_number.append(self.agents.clique_number_gen())
+            #n_clusters.append(self.agents.analyse_clustering()[0])
+            #max_cluster.append(self.agents.analyse_clustering()[1])
+            #n_clusters_louvain.append(self.agents.analyse_communities_louvain()[0])
+            #max_cluster_louvain.append(self.agents.analyse_communities_louvain()[1])
+            n_clusters_k_clique.append(self.agents.compute_spatial_k_clique()[0])
+            max_clusters_k_clique.append(self.agents.compute_spatial_k_clique()[1])
+            n_clusters_k_means.append(self.agents.silloutte_k_means()[0])
+            max_clusters_k_means.append(self.agents.silloutte_k_means()[1])
+            size_clusters.append(self.agents.silloutte_k_means()[2])
+            info_sharing_clusters.append(self.agents.silloutte_k_means()[3])
+            mean_payoffs.append(self.agents.get_mean_payoff()[0])
+            max_payoffs.append(self.agents.get_mean_payoff()[1])
+            max_payoffs_pos.append(self.agents.get_mean_payoff()[2])
+            pay_off_var.append(self.agents.get_mean_payoff()[3])
+            mean_coop.append(self.agents.summarise_weights_gen()[0])
+            var_coop.append(self.agents.summarise_weights_gen()[1])
+            coop_ratios.append(self.agents.all_mean_coop())
+            p_val.append(self.agents.p)
+            self.agents.create_offsprings_matrix(evolving_strategies,noise, v_max, eta, normalise, limit_interactions, interaction_radius)
+            bar.display((n+1)/self.n_gen)
+        print ('Duration:',sec_to_string(int(round(time.time())) - start))
+        return loc_all, loc_c, loc_d, reciprocity, clique_number, mean_coop, var_coop,n_clusters_k_clique,max_clusters_k_clique, n_clusters_k_means,max_clusters_k_means,size_clusters,mean_payoffs, max_payoffs, max_payoffs_pos, pay_off_var, mean_coop, var_coop, coop_ratios, info_sharing_clusters, p_val
+    
+    def plot_data_mult_gen(self,evolving_strategies = False, noise=0.01, v_max = 1, eta = 0.01, normalise = True, limit_interactions = False, interaction_radius = float('inf')):
+        loc_all, loc_c, loc_d, reciprocity, clique_number, mean_coop, var_coop, n_clusters_k_clique,max_cluster_k_clique,n_clusters_k_means,max_clusters_k_means, size_cluster, mean_payoffs, max_payoffs, max_payoffs_pos,pay_off_var, mean_coop, var_coop, coop_ratios, info_sharing_clusters, p_val = self.mult_generations(evolving_strategies, noise, v_max, eta, normalise, limit_interactions, interaction_radius) 
+        t = [i for i in range(1,self.n_gen+1)]
+        fig = plt.figure(figsize=(10,12))
+        plt.subplot(6, 2, 1)
+        plt.plot(t,reciprocity)
+        plt.title('reciprocity')
+        plt.subplot(6, 2, 2)
+        plt.plot(t,clique_number)
+        plt.title('clique number')
+        """
+        plt.subplot(6, 2, 3)
+        plt.plot(t,n_clusters)
+        plt.title('Number of communities - hierarchical')
+        plt.subplot(6, 2, 4)
+        plt.plot(t,max_cluster)
+        plt.title('Size of the largest community - hierarchical')
+        """
+        plt.subplot(6, 2, 3)
+        plt.plot(t,n_clusters_k_clique)
+        plt.title('Number of communities - k-clique')
+        plt.subplot(6, 2, 4)
+        plt.plot(t,max_cluster_k_clique)
+        plt.title('Size of the largest community - k-clique')
+        plt.subplot(6, 2, 5)
+        plt.plot(t,n_clusters_k_means)
+        plt.title('Number of communities - k-means')
+        plt.subplot(6, 2, 6)
+        plt.plot(t,max_clusters_k_means)
+        plt.title('Size of the largest community - k-means')
+        plt.subplot(6, 2, 7)
+        plt.plot(t,mean_coop)
+        plt.title('Average cooperation ratio')
+        plt.subplot(6, 2, 8)
+        plt.plot(t,var_coop)
+        plt.title('Variance of cooperation ratios')
+        plt.subplot(6, 2, 9)
+        plt.plot(t,mean_payoffs)
+        plt.title('Mean payoff of a generation')
+        plt.subplot(6, 2, 10)
+        plt.plot(t,max_payoffs)
+        plt.title('Max payoff of a generation')
+        plt.subplot(6, 2, 11)
+        plt.plot(t,pay_off_var)
+        plt.title('Variance of the payoff of a generation')
+        fig.tight_layout()
+        plt.show()                     
+        return loc_all, loc_c, loc_d, size_cluster, coop_ratios, info_sharing_clusters, p_val
+        
+    def sim_equal_payoff(self,noise=0.01):
+        loc_all=dict()
+        loc_c=dict()
+        loc_d=dict()
+        start = int(round(time.time()))
+        for t in range(self.n_gen):
+            for n in range(len(self.agents)):
+                self.agents.node[n]['accumulated payoff'] = 1000
+            self.agents.perform_selection()
+            loc_all[t] = self.agents.get_locations_all()
+            loc_c[t] = self.agents.get_locations_C()
+            loc_d[t] = self.agents.get_locations_D()
+            self.agents.create_offsprings_simple(self.type_alg,noise)
+        print ('Duration:',sec_to_string(int(round(time.time())) - start))
+        return loc_all,loc_c,loc_d
+            
+        
